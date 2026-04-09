@@ -485,11 +485,7 @@
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Default supermarket</label>
           <p class="text-xs text-gray-400 mb-3">Search will open with this store pre-selected. You can always change it per search.</p>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {% for slug, label, color in
-              [('all', 'All Stores', '#374151')] +
-              [(s, store_labels.get(s, s.replace('_',' ').title()), store_colors.get(s, '#666'))
-               for s in available_stores]
-            %}
+            {% for slug, label, color in store_options %}
             <label class="cursor-pointer">
               <input type="radio" name="default_store" value="{{ slug }}"
                 {% if ns.default_store == slug or (not ns.default_store and slug == 'all') %}checked{% endif %}

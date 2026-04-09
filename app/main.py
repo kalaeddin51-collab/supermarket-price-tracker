@@ -792,16 +792,17 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         if pref and pref.suburb:
             user_suburb = pref.suburb
 
-    available_stores = _stores_for_suburb(user_suburb)
+    store_options = [("all", "All Stores", "#374151")] + [
+        (slug, STORE_LABELS.get(slug, slug.replace("_", " ").title()), STORE_COLORS.get(slug, "#666"))
+        for slug in _stores_for_suburb(user_suburb)
+    ]
 
     return templates.TemplateResponse(request, "settings.html", {
         "ns": ns,
         "notify_days_list": notify_days_list,
         "day_names": day_names,
         "page": "settings",
-        "available_stores": available_stores,
-        "store_labels": STORE_LABELS,
-        "store_colors": STORE_COLORS,
+        "store_options": store_options,
     })
 
 
