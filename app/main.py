@@ -62,11 +62,16 @@ templates = Jinja2Templates(directory="app/templates")
 @app.get("/health")
 async def health_check():
     """Quick health/debug endpoint."""
+    import os
+    # Check what env vars Railway actually set (scraper-related only)
+    scraper_env = {k: v[:6] + "..." for k, v in os.environ.items()
+                   if "SCRAPER" in k.upper() or "PROXY" in k.upper()}
     return {
         "status": "ok",
         "scraperapi_configured": bool(settings.scraperapi_key),
         "scraperapi_key_prefix": settings.scraperapi_key[:6] + "..." if settings.scraperapi_key else "",
         "proxy_configured": bool(settings.scraper_proxy),
+        "env_vars_found": scraper_env,
     }
 
 
