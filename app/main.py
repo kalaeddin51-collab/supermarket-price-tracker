@@ -2392,7 +2392,9 @@ async def startup():
         db = SessionLocal()
         try:
             ns = db.query(models.NotificationSettings).first()
-            if ns and ns.scraperapi_key:
+            if ns and getattr(ns, "scraperapi_key", None):
                 settings.scraperapi_key = ns.scraperapi_key
+        except Exception:
+            pass  # column may not exist yet on first deploy
         finally:
             db.close()

@@ -1,7 +1,9 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", frozen=False)
+
     database_url: str = "sqlite:///./prices.db"
 
     # Must be set to a long random string in production (used to sign sessions)
@@ -25,9 +27,6 @@ class Settings(BaseSettings):
     # ScraperAPI key (preferred over proxy for Woolworths/Coles)
     # Sign up free at scraperapi.com, paste your key here
     scraperapi_key: str = ""
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
