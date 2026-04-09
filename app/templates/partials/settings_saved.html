@@ -1,0 +1,8 @@
+<div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+  class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm mb-4">
+  <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+  </svg>
+  <span>Settings saved successfully.</span>
+  <button @click="show = false" class="ml-auto text-emerald-600 hover:text-emerald-900">✕</button>
+</div>

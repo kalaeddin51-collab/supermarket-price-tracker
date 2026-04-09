@@ -1,0 +1,204 @@
+
+<style>
+  :root { --col: 5; }
+  .jm-wrap { padding: 1rem 0; font-size: 13px; }
+  .stage-row { display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 8px; align-items: stretch; margin-bottom: 8px; }
+  .row-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; padding-right: 8px; }
+  .stage-header { border-radius: var(--border-radius-md); padding: 10px 8px; text-align: center; }
+  .stage-header .stage-name { font-size: 13px; font-weight: 500; }
+  .stage-header .stage-sub { font-size: 11px; margin-top: 2px; }
+  .cell { border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); padding: 8px 10px; font-size: 12px; color: var(--color-text-primary); line-height: 1.5; min-height: 54px; }
+  .cell ul { margin: 0; padding-left: 14px; }
+  .cell li { margin-bottom: 2px; }
+  .emotion-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); }
+  .emo-icon { font-size: 18px; }
+  .emo-label { font-size: 11px; color: var(--color-text-secondary); text-align: center; }
+  .opp-cell { border-radius: var(--border-radius-md); padding: 8px 10px; font-size: 12px; line-height: 1.5; min-height: 54px; }
+  .opp-cell ul { margin: 0; padding-left: 14px; }
+  .opp-cell li { margin-bottom: 2px; }
+  .divider { grid-column: 1 / -1; height: 1px; background: var(--color-border-tertiary); margin: 4px 0; }
+  .section-title { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .05em; margin: 16px 0 8px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .s1 { background: #EEEDFE; color: #3C3489; }
+  .s2 { background: #E1F5EE; color: #085041; }
+  .s3 { background: #FAEEDA; color: #633806; }
+  .s4 { background: #FAECE7; color: #712B13; }
+  .s5 { background: #E6F1FB; color: #0C447C; }
+  .s1-cell { background: #f7f6ff; border-color: #AFA9EC; }
+  .s2-cell { background: #f0faf5; border-color: #5DCAA5; }
+  .s3-cell { background: #fef8ee; border-color: #EF9F27; }
+  .s4-cell { background: #fef3ee; border-color: #F0997B; }
+  .s5-cell { background: #eef6fd; border-color: #85B7EB; }
+  .opp1 { background: #EEEDFE; color: #3C3489; border: 0.5px solid #AFA9EC; }
+  .opp2 { background: #E1F5EE; color: #085041; border: 0.5px solid #5DCAA5; }
+  .opp3 { background: #FAEEDA; color: #633806; border: 0.5px solid #EF9F27; }
+  .opp4 { background: #FAECE7; color: #712B13; border: 0.5px solid #F0997B; }
+  .opp5 { background: #E6F1FB; color: #0C447C; border: 0.5px solid #85B7EB; }
+
+  @media (prefers-color-scheme: dark) {
+    .s1 { background: #26215C; color: #CECBF6; }
+    .s2 { background: #04342C; color: #9FE1CB; }
+    .s3 { background: #412402; color: #FAC775; }
+    .s4 { background: #4A1B0C; color: #F5C4B3; }
+    .s5 { background: #042C53; color: #B5D4F4; }
+    .s1-cell { background: #1a1830; border-color: #534AB7; }
+    .s2-cell { background: #0a211c; border-color: #0F6E56; }
+    .s3-cell { background: #271600; border-color: #BA7517; }
+    .s4-cell { background: #2a1008; border-color: #993C1D; }
+    .s5-cell { background: #031b32; border-color: #185FA5; }
+    .opp1 { background: #26215C; color: #CECBF6; border-color: #534AB7; }
+    .opp2 { background: #04342C; color: #9FE1CB; border-color: #0F6E56; }
+    .opp3 { background: #412402; color: #FAC775; border-color: #854F0B; }
+    .opp4 { background: #4A1B0C; color: #F5C4B3; border-color: #993C1D; }
+    .opp5 { background: #042C53; color: #B5D4F4; border-color: #185FA5; }
+    .emo-icon { filter: none; }
+  }
+</style>
+
+<div class="jm-wrap">
+
+  <div class="stage-row">
+    <div class="row-label"></div>
+    <div class="stage-header s1"><div class="stage-name">1. Discover</div><div class="stage-sub">Finds the app</div></div>
+    <div class="stage-header s2"><div class="stage-name">2. Onboard</div><div class="stage-sub">First use</div></div>
+    <div class="stage-header s3"><div class="stage-name">3. Search &amp; Compare</div><div class="stage-sub">Core loop</div></div>
+    <div class="stage-header s4"><div class="stage-name">4. Track &amp; Alert</div><div class="stage-sub">Returns</div></div>
+    <div class="stage-header s5"><div class="stage-name">5. Advocate</div><div class="stage-sub">Shares value</div></div>
+  </div>
+
+  <div class="stage-row">
+    <div class="row-label">User actions</div>
+    <div class="cell s1-cell"><ul>
+      <li>Googles "cheapest groceries Sydney"</li>
+      <li>Sees ACCC news, searches for price tools</li>
+      <li>Clicks app link / App Store listing</li>
+    </ul></div>
+    <div class="cell s2-cell"><ul>
+      <li>Opens app, sees store list</li>
+      <li>Sets location (North Sydney)</li>
+      <li>Searches first product</li>
+    </ul></div>
+    <div class="cell s3-cell"><ul>
+      <li>Searches item (e.g. olive oil)</li>
+      <li>Views per-unit price breakdown</li>
+      <li>Compares Woolies vs Coles vs Harris Farm</li>
+      <li>Checks price history chart</li>
+    </ul></div>
+    <div class="cell s4-cell"><ul>
+      <li>Adds items to watchlist</li>
+      <li>Sets price threshold alert</li>
+      <li>Receives notification, acts on it</li>
+    </ul></div>
+    <div class="cell s5-cell"><ul>
+      <li>Shares a product comparison</li>
+      <li>Recommends app to friends</li>
+      <li>Reviews / rates the app</li>
+    </ul></div>
+  </div>
+
+  <div class="stage-row">
+    <div class="row-label">Touchpoints</div>
+    <div class="cell s1-cell"><ul>
+      <li>Google search results</li>
+      <li>News articles (ACCC)</li>
+      <li>App Store listing</li>
+      <li>Word of mouth</li>
+    </ul></div>
+    <div class="cell s2-cell"><ul>
+      <li>App home screen</li>
+      <li>Location permission prompt</li>
+      <li>Search bar / category browse</li>
+    </ul></div>
+    <div class="cell s3-cell"><ul>
+      <li>Search results page</li>
+      <li>Product detail view</li>
+      <li>Per-unit price display</li>
+      <li>Price history chart</li>
+      <li>Store filter / sort</li>
+    </ul></div>
+    <div class="cell s4-cell"><ul>
+      <li>Watchlist screen</li>
+      <li>Alert settings UI</li>
+      <li>Push notification</li>
+      <li>Email digest (optional)</li>
+    </ul></div>
+    <div class="cell s5-cell"><ul>
+      <li>Share sheet / deep link</li>
+      <li>App Store review prompt</li>
+      <li>Social sharing card</li>
+    </ul></div>
+  </div>
+
+  <div class="stage-row">
+    <div class="row-label">Pain points</div>
+    <div class="cell s1-cell"><ul>
+      <li>Hard to find in search (SEO)</li>
+      <li>Unclear what the app does at a glance</li>
+    </ul></div>
+    <div class="cell s2-cell"><ul>
+      <li>Location permission anxiety</li>
+      <li>No tutorial — unclear where to start</li>
+      <li>Store coverage gaps (IGA data thin)</li>
+    </ul></div>
+    <div class="cell s3-cell"><ul>
+      <li>Product names inconsistent across chains</li>
+      <li>Per-unit calc missing for some items</li>
+      <li>Price data staleness not visible</li>
+      <li>Woolies/Coles block scraping</li>
+    </ul></div>
+    <div class="cell s4-cell"><ul>
+      <li>Alert fatigue (too many notifications)</li>
+      <li>Watchlist hard to manage at scale</li>
+      <li>Price drops missed if data stale</li>
+    </ul></div>
+    <div class="cell s5-cell"><ul>
+      <li>No easy share format</li>
+      <li>Deep link breaks if product moved</li>
+    </ul></div>
+  </div>
+
+  <div class="stage-row">
+    <div class="row-label">Emotion</div>
+    <div class="emotion-cell s1-cell"><div class="emo-icon">🤔</div><div class="emo-label">Curious / sceptical</div></div>
+    <div class="emotion-cell s2-cell"><div class="emo-icon">😐</div><div class="emo-label">Cautious</div></div>
+    <div class="emotion-cell s3-cell"><div class="emo-icon">😮</div><div class="emo-label">Surprised / engaged</div></div>
+    <div class="emotion-cell s4-cell"><div class="emo-icon">😊</div><div class="emo-label">Satisfied / loyal</div></div>
+    <div class="emotion-cell s5-cell"><div class="emo-icon">🤩</div><div class="emo-label">Enthusiastic</div></div>
+  </div>
+
+  <div class="stage-row">
+    <div class="row-label">Opportunities</div>
+    <div class="opp-cell opp1"><ul>
+      <li>SEO: target "price gouging" news keywords</li>
+      <li>PR angle: ACCC investigation tailwind</li>
+    </ul></div>
+    <div class="opp-cell opp2"><ul>
+      <li>Frictionless onboarding (auto-detect suburb)</li>
+      <li>Single "wow" result on first search</li>
+    </ul></div>
+    <div class="opp-cell opp3"><ul>
+      <li>Fuzzy product matching across chains</li>
+      <li>Show data freshness badge</li>
+      <li>Highlight per-unit as key differentiator</li>
+    </ul></div>
+    <div class="opp-cell opp4"><ul>
+      <li>Smart alert grouping (weekly digest mode)</li>
+      <li>Watchlist categories / baskets</li>
+    </ul></div>
+    <div class="opp-cell opp5"><ul>
+      <li>Shareable price comparison cards (OG image)</li>
+      <li>Referral mechanic for monetisation</li>
+    </ul></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#7F77DD"></div>Discover</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Onboard</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#BA7517"></div>Search &amp; Compare</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#D85A30"></div>Track &amp; Alert</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#378ADD"></div>Advocate</div>
+  </div>
+</div>

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Price Tracker",
+      "runtimeExecutable": "C:\\Users\\kalae\\miniconda3\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

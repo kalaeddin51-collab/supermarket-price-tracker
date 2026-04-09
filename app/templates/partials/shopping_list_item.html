@@ -1,0 +1,342 @@
+{% set cheapest = results[0] if results else None %}
+{% set cheapest_price = cheapest.price if cheapest else None %}
+{% set cheapest_store = cheapest.store if cheapest else None %}
+{% set cheapest_pu = cheapest.per_unit_label if cheapest else "" %}
+
+{# Basket cost: price normalised to the item's specified qty/unit #}
+{# item.qty may be None for legacy rows — fall back to 1.0 #}
+{% set _safe_qty = (item.qty | float) if item.qty is not none else 1.0 %}
+{% if cheapest_price is not none and item.unit and cheapest %}
+  {% set basket_price = basket_cost(cheapest_price, cheapest.unit, _safe_qty, item.unit) %}
+{% else %}
+  {% set basket_price = cheapest_price %}
+{% endif %}
+
+{# Size label for display (e.g. "1 L", "500 g", "2 each") #}
+{% if item.unit %}
+  {% set qty_int = _safe_qty | int %}
+  {% set qty_display = qty_int if _safe_qty == qty_int else _safe_qty %}
+  {% set size_label = qty_display ~ " " ~ item.unit %}
+{% else %}
+  {% set size_label = "" %}
+{% endif %}
+
+{#
+  NOTE: No x-data here — this template is always rendered inside the parent
+  shoppingListData() Alpine component, so toggleSelect / isSelected / toggleSize /
+  isSizeOpen are all resolved from the parent scope. This is essential because
+  HTMX replaces this element and Alpine re-evaluates it within the existing scope.
+#}
+<div id="sli-{{ item.id }}"
+     data-item-id="{{ item.id }}"
+     class="group flex flex-col gap-2 p-3 rounded-xl border
+            {% if item.checked %}bg-gray-50 border-gray-200 opacity-60{% else %}bg-white border-gray-200{% endif %}
+            transition-all">
+
+  <!-- ── Top row: select · bought · name · size badge · price · actions ── -->
+  <div class="flex items-center gap-3">
+
+    <!-- Bulk-select circle (opacity-0 until hover or selected) -->
+    <button type="button"
+            @click.stop="toggleSelect({{ item.id }})"
+            class="shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all"
+            :class="isSelected({{ item.id }}) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 hover:border-indigo-400 opacity-0 group-hover:opacity-100'"
+            title="Select for bulk action">
+      <svg x-show="isSelected({{ item.id }})" class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+      </svg>
+    </button>
+
+    <!-- Bought checkbox -->
+    <button
+      hx-patch="/partials/shopping-list/item/{{ item.id }}/check"
+      hx-target="#sli-{{ item.id }}"
+      hx-swap="outerHTML"
+      class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+             {% if item.checked %}bg-brand border-brand{% else %}border-gray-300 hover:border-brand{% endif %}"
+      title="Toggle checked">
+      {% if item.checked %}
+      <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+      </svg>
+      {% endif %}
+    </button>
+
+    <!-- Name + size badge -->
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="font-medium text-sm {% if item.checked %}line-through text-gray-400{% else %}text-gray-900{% endif %}">
+          {{ item.name }}
+        </span>
+
+        <!-- Size badge / edit trigger -->
+        {% if size_label %}
+        <button type="button" @click.stop="toggleSize({{ item.id }})"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold
+                       bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors shrink-0"
+                title="Change comparison size">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-1m6 1l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-1m0-1v-1a1 1 0 011-1h4a1 1 0 011 1v1"/>
+          </svg>
+          {{ size_label }}
+        </button>
+        {% else %}
+        <button type="button" @click.stop="toggleSize({{ item.id }})"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium
+                       text-gray-400 border border-dashed border-gray-300 hover:border-violet-400 hover:text-violet-600 transition-colors shrink-0"
+                title="Set comparison size">
+          + size
+        </button>
+        {% endif %}
+      </div>
+      {% if item.notes %}
+        <div class="text-xs text-gray-400 truncate mt-0.5">{{ item.notes }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Best price badge -->
+    {% if basket_price is not none %}
+    <div class="shrink-0 text-right">
+      <span class="text-base font-bold text-brand">${{ "%.2f"|format(basket_price) }}</span>
+      {% if size_label and basket_price != cheapest_price %}
+        <div class="text-[10px] text-violet-600 font-semibold">for {{ size_label }}</div>
+        <div class="text-[10px] text-emerald-600">{{ cheapest_pu }}</div>
+      {% elif cheapest_pu %}
+        <div class="text-[10px] text-emerald-600 font-semibold">{{ cheapest_pu }}</div>
+      {% endif %}
+      <div class="text-[10px] text-gray-400 capitalize">
+        {{ cheapest_store | replace("Store.", "") | replace("_", " ") if cheapest_store else "" }}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Per-item Search button -->
+    <button
+      hx-post="/partials/shopping-list/item/{{ item.id }}/search"
+      hx-target="#sli-{{ item.id }}"
+      hx-swap="outerHTML"
+      hx-indicator="#search-spinner-{{ item.id }}"
+      hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+      class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+             bg-gray-100 text-gray-600 hover:bg-brand-light hover:text-brand transition-colors"
+      title="Search stores">
+      <svg id="search-spinner-{{ item.id }}" class="htmx-indicator w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+      <svg class="w-3.5 h-3.5 htmx-indicator-hide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <span>Search</span>
+    </button>
+
+    <!-- Delete button -->
+    <button
+      hx-delete="/partials/shopping-list/item/{{ item.id }}"
+      hx-target="#sli-{{ item.id }}"
+      hx-swap="outerHTML"
+      hx-confirm="Remove this item?"
+      class="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+      title="Remove item">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ── Size editor panel ────────────────────────────────────────────────── -->
+  <div x-show="isSizeOpen({{ item.id }})" x-cloak
+       x-transition:enter="transition ease-out duration-150"
+       x-transition:enter-start="opacity-0 -translate-y-1"
+       x-transition:enter-end="opacity-100 translate-y-0"
+       class="ml-8 p-3 bg-violet-50 border border-violet-200 rounded-xl">
+
+    <p class="text-[11px] font-semibold text-violet-700 mb-2">
+      Set comparison size — prices will be normalised to this quantity
+    </p>
+
+    <!-- Quick-select buttons -->
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      <span class="text-[9px] font-semibold text-gray-400 uppercase self-center mr-0.5">Volume</span>
+      {% for q, u in [(250,"ml"),(500,"ml"),(750,"ml"),(1,"L"),(2,"L"),(3,"L")] %}
+      <button type="button"
+              hx-post="/partials/shopping-list/item/{{ item.id }}/size"
+              hx-vals='{"qty": {{ q }}, "unit": "{{ u }}"}'
+              hx-target="#sli-{{ item.id }}"
+              hx-swap="outerHTML"
+              hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+              @click="closeSize()"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors
+                     {% if item.qty == q and item.unit == u %}bg-violet-600 text-white border-violet-600{% else %}bg-white text-violet-700 border-violet-300 hover:bg-violet-100{% endif %}">
+        {{ q }}{{ u }}
+      </button>
+      {% endfor %}
+
+      <span class="text-[9px] font-semibold text-gray-400 uppercase self-center ml-2 mr-0.5">Weight</span>
+      {% for q, u in [(100,"g"),(200,"g"),(250,"g"),(500,"g"),(1,"kg"),(2,"kg")] %}
+      <button type="button"
+              hx-post="/partials/shopping-list/item/{{ item.id }}/size"
+              hx-vals='{"qty": {{ q }}, "unit": "{{ u }}"}'
+              hx-target="#sli-{{ item.id }}"
+              hx-swap="outerHTML"
+              hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+              @click="closeSize()"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors
+                     {% if item.qty == q and item.unit == u %}bg-violet-600 text-white border-violet-600{% else %}bg-white text-violet-700 border-violet-300 hover:bg-violet-100{% endif %}">
+        {{ q }}{{ u }}
+      </button>
+      {% endfor %}
+
+      <span class="text-[9px] font-semibold text-gray-400 uppercase self-center ml-2 mr-0.5">Each</span>
+      {% for q, u in [(1,"each"),(2,"each"),(4,"each"),(6,"each"),(12,"each"),(1,"pack"),(2,"pack")] %}
+      <button type="button"
+              hx-post="/partials/shopping-list/item/{{ item.id }}/size"
+              hx-vals='{"qty": {{ q }}, "unit": "{{ u }}"}'
+              hx-target="#sli-{{ item.id }}"
+              hx-swap="outerHTML"
+              hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+              @click="closeSize()"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors
+                     {% if item.qty == q and item.unit == u %}bg-violet-600 text-white border-violet-600{% else %}bg-white text-violet-700 border-violet-300 hover:bg-violet-100{% endif %}">
+        {% if q == 1 %}{{ u }}{% else %}{{ q }}×{{ u }}{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Custom qty + unit -->
+    <form hx-post="/partials/shopping-list/item/{{ item.id }}/size"
+          hx-target="#sli-{{ item.id }}"
+          hx-swap="outerHTML"
+          hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+          @submit="closeSize()"
+          class="flex items-center gap-2 flex-wrap">
+      <span class="text-[11px] text-gray-500 shrink-0">Custom:</span>
+      <input type="number" name="qty" step="0.001" min="0.001"
+             value="{{ _safe_qty }}"
+             class="w-20 border border-violet-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300">
+      <select name="unit"
+              class="border border-violet-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white">
+        <option value="" {% if not item.unit %}selected{% endif %}>— face value (no unit)</option>
+        <optgroup label="Volume">
+          <option value="ml"   {% if item.unit == "ml"   %}selected{% endif %}>ml</option>
+          <option value="L"    {% if item.unit == "L"    %}selected{% endif %}>L (litres)</option>
+        </optgroup>
+        <optgroup label="Weight">
+          <option value="g"    {% if item.unit == "g"    %}selected{% endif %}>g (grams)</option>
+          <option value="kg"   {% if item.unit == "kg"   %}selected{% endif %}>kg</option>
+        </optgroup>
+        <optgroup label="Count">
+          <option value="each" {% if item.unit == "each" %}selected{% endif %}>each</option>
+          <option value="pack" {% if item.unit == "pack" %}selected{% endif %}>pack</option>
+        </optgroup>
+      </select>
+      <button type="submit"
+              class="px-3 py-1 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 transition-colors">
+        Apply
+      </button>
+      <button type="button" @click="closeSize()"
+              class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+      {% if item.unit %}
+      <button type="button"
+              hx-post="/partials/shopping-list/item/{{ item.id }}/size"
+              hx-vals='{"qty": 1, "unit": ""}'
+              hx-target="#sli-{{ item.id }}"
+              hx-swap="outerHTML"
+              hx-on::after-request="htmx.trigger(document.body, 'basket-refresh')"
+              @click="closeSize()"
+              class="ml-auto text-[10px] text-red-400 hover:text-red-600 transition-colors">
+        Clear size
+      </button>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- ── Store price pills ────────────────────────────────────────────────── -->
+  {% set _store_colors = {
+    "woolworths":        "#007D40",
+    "coles":             "#E31A2F",
+    "harris_farm":       "#F27200",
+    "iga_crows_nest":    "#D2232A",
+    "iga_milsons_point": "#D2232A",
+    "iga_north_sydney":  "#D2232A"
+  } %}
+
+  {% set _rv = results_volume if results_volume is defined else [] %}
+  {% set _rw = results_weight if results_weight is defined else [] %}
+  {% set _rc = results_count  if results_count  is defined else results %}
+
+  {% if _rv or _rw or _rc %}
+  <div class="flex flex-col gap-1.5 pl-8">
+
+    {% macro pill_row(group, label) %}
+    {% if group %}
+    <div class="flex flex-wrap items-center gap-1">
+      <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mr-0.5">{{ label }}</span>
+      {% for r in group %}
+      {% set is_best = loop.index == 1 %}
+      {% set sc = _store_colors.get(r.store, "#6b7280") %}
+      {% if item.unit %}
+        {% set pill_cost = basket_cost(r.price, r.unit, _safe_qty, item.unit) %}
+      {% else %}
+        {% set pill_cost = r.price %}
+      {% endif %}
+      <span class="inline-flex flex-col items-center text-[10px] font-semibold px-2 py-0.5 rounded-full text-white leading-tight"
+            style="background-color: {{ sc }};"
+            title="{{ r.name }} — {{ r.unit }}">
+        <span class="flex items-center gap-0.5">
+          {% if is_best %}
+          <svg class="w-2.5 h-2.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+          {% endif %}
+          ${{ "%.2f"|format(pill_cost) }}
+        </span>
+        {% if item.unit %}
+          <span class="opacity-90 font-normal" style="font-size:9px;">for {{ size_label }}</span>
+          <span class="opacity-70 font-normal" style="font-size:8px;">{{ r.per_unit_label if r.per_unit_label else r.unit }}</span>
+        {% elif r.per_unit_label %}
+          <span class="opacity-90 font-normal" style="font-size:9px;">{{ r.per_unit_label }}</span>
+        {% elif r.unit %}
+          <span class="opacity-75 font-normal" style="font-size:9px;">{{ r.unit }}</span>
+        {% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endmacro %}
+
+    {{ pill_row(_rv, "by volume") }}
+    {{ pill_row(_rw, "by weight") }}
+    {{ pill_row(_rc, "by each") }}
+
+    <!-- Watch cheapest button -->
+    {% if results %}
+    {% set best = results[0] %}
+    <div>
+      <form hx-post="/partials/watchlist/add"
+            hx-target="#watch-btn-{{ item.id }}"
+            hx-swap="outerHTML">
+        <input type="hidden" name="external_id" value="{{ best.external_id }}">
+        <input type="hidden" name="store"       value="{{ best.store }}">
+        <input type="hidden" name="name"        value="{{ best.name }}">
+        <input type="hidden" name="url"         value="{{ best.url }}">
+        <input type="hidden" name="price"       value="{{ best.price }}">
+        <input type="hidden" name="unit"        value="{{ best.unit }}">
+        <input type="hidden" name="image_url"   value="{{ best.image_url }}">
+        <button id="watch-btn-{{ item.id }}" type="submit"
+                class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full
+                       bg-brand-light text-brand border border-brand/20 hover:bg-brand hover:text-white transition-colors">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          Watch cheapest
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+</div>

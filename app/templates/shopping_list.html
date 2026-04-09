@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% block title %}Shopping List{% endblock %}
+
+{% block content %}
+<script>
+  window.shoppingListData = function() {
+    var root = document.getElementById('shopping-list-root');
+    var showImport = root ? root.dataset.showImport === 'true' : true;
+    return {
+      importTab: 'text',
+      showImport: showImport,
+      searching: false,
+      selectedIds: [],
+      openSizeId: null,
+      showNewList: false,
+      newListName: '',
+      showRename: false,
+      renameName: '',
+      emailSending: false,
+
+      // Size editor helpers (used by shopping_list_item.html via parent scope)
+      toggleSize(id) { this.openSizeId = this.openSizeId === id ? null : id; },
+      isSizeOpen(id) { return this.openSizeId === id; },
+      closeSize()    { this.openSizeId = null; },
+
+      toggleSelect(id) {
+        if (this.selectedIds.includes(id)) {
+          this.selectedIds = this.selectedIds.filter(i => i !== id);
+        } else {
+          this.selectedIds = [...this.selectedIds, id];
+        }
+      },
+      isSelected(id) {
+        return this.selectedIds.includes(id);
+      },
+      selectAll() {
+        this.selectedIds = Array.from(document.querySelectorAll('#items-list [data-item-id]'))
+          .map(el => parseInt(el.dataset.itemId));
+      },
+      clearSelection() {
+        this.selectedIds = [];
+      },
+      async bulkDelete() {
+        if (!this.selectedIds.length) return;
+        const ids = [...this.selectedIds];
+        const resp = await fetch('/partials/shopping-list/bulk-delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'item_ids=' + encodeURIComponent(ids.join(','))
+        });
+        if (resp.ok) {
+          ids.forEach(id => {
+            const el = document.querySelector('#items-list [data-item-id="' + id + '"]');
+            if (el) el.remove();
+          });
+          this.selectedIds = [];
+          if (window.htmx) htmx.trigger(document.body, 'basket-refresh');
+        }
+      },
+      async bulkSearch() {
+        if (!this.selectedIds.length) return;
+        this.searching = true;
+        const root = document.getElementById('shopping-list-root');
+        const listId = root ? root.dataset.listId : '';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/partials/shopping-list/bulk-search';
+        [['list_id', listId], ['item_ids', this.selectedIds.join(',')]].forEach(([n, v]) => {
+          const inp = document.createElement('input');
+          inp.type = 'hidden'; inp.name = n; inp.value = v;
+          form.appendChild(inp);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      },
+      async sendEmail(listId) {
+        if (this.emailSending) return;
+        this.emailSending = true;
+        const resp = await fetch('/shopping-list/' + listId + '/email', { method: 'POST' });
+        const html = await resp.text();
+        const fb = document.getElementById('email-feedback');
+        if (fb) fb.outerHTML = html;
+        else {
+          const el = document.createElement('div');
+          el.innerHTML = html;
+          document.querySelector('.email-feedback-slot')?.appendChild(el.firstChild);
+        }
+        this.emailSending = false;
+      },
+      deleteList(listId) {
+        if (!confirm('Delete this shopping list and all its items? This cannot be undone.')) return;
+        fetch('/shopping-list/' + listId, { method: 'DELETE' })
+          .then(() => window.location.href = '/shopping-list');
+      }
+    };
+  };
+</script>
+
+<div x-data="shoppingListData()"
+     id="shopping-list-root"
+     data-show-import="{{ 'true' if not items_with_results or items_with_results|length == 0 else 'false' }}"
+     data-list-id="{{ active_list.id }}">
+
+  <!-- ── Page header ──────────────────────────────────────────────────── -->
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <div class="min-w-0">
+      <!-- Editable list name -->
+      <div x-show="!showRename" class="flex items-center gap-2">
+        <h1 id="list-name-heading" class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <svg class="w-6 h-6 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+          </svg>
+          {{ active_list.name }}
+        </h1>
+        <!-- Rename pencil -->
+        <button @click="showRename = true; renameName = '{{ active_list.name | replace("'", "\\'") }}'"
+                class="text-gray-300 hover:text-gray-500 transition-colors" title="Rename list">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+        <!-- Delete list -->
+        <button @click="deleteList({{ active_list.id }})"
+                class="text-gray-300 hover:text-red-400 transition-colors" title="Delete list">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      </div>
+      <!-- Rename form (shown inline) -->
+      <div x-show="showRename" x-cloak class="flex items-center gap-2">
+        <form hx-post="/shopping-list/{{ active_list.id }}/rename"
+              hx-target="#list-name-heading"
+              hx-swap="outerHTML"
+              class="flex items-center gap-2"
+              @submit="showRename = false">
+          <input x-model="renameName" name="name" type="text"
+                 class="text-xl font-bold border border-brand rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-brand/30"
+                 @keydown.escape="showRename = false"
+                 x-effect="showRename && $nextTick(() => $el.focus())">
+          <button type="submit" class="text-sm bg-brand text-white px-3 py-1 rounded-lg font-medium hover:bg-brand-dark">Save</button>
+          <button type="button" @click="showRename = false" class="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+        </form>
+      </div>
+      <p class="text-sm text-gray-400 mt-0.5">
+        {{ active_list.items | length }} item{% if active_list.items | length != 1 %}s{% endif %}
+        {% if active_list.updated_at %} · updated {{ active_list.updated_at.strftime("%d %b %Y") }}{% endif %}
+      </p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <!-- Search All Stores button -->
+      {% if active_list.items %}
+      <form method="post" action="/partials/shopping-list/search-all/{{ active_list.id }}">
+        <button type="submit"
+                @click="searching = true"
+                class="flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-sm">
+          <svg :class="searching ? 'animate-spin' : ''" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <span x-text="searching ? 'Searching...' : 'Search All Stores'"></span>
+        </button>
+      </form>
+      <!-- Email this list -->
+      <button @click="sendEmail({{ active_list.id }})"
+              :disabled="emailSending"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <span x-text="emailSending ? 'Sending...' : 'Email List'"></span>
+      </button>
+      {% endif %}
+      <!-- Import toggle -->
+      <button @click="showImport = !showImport"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Add Items
+      </button>
+    </div>
+  </div>
+  <!-- Email feedback slot -->
+  <div class="email-feedback-slot">
+    <div id="email-feedback"></div>
+  </div>
+
+  <!-- ── List selector tabs ───────────────────────────────────────────── -->
+  <div class="flex gap-1 mb-4 overflow-x-auto pb-1 items-center">
+    {% for lst in lists %}
+    <a href="/shopping-list/{{ lst.id }}"
+       class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if lst.id == active_list.id %}bg-brand-light text-brand{% else %}text-gray-500 hover:bg-gray-100{% endif %}">
+      {{ lst.name }}
+      <span class="text-[10px] ml-1 opacity-60">{{ lst.items | length }}</span>
+    </a>
+    {% endfor %}
+
+    <!-- New List button / inline form -->
+    <div class="relative shrink-0">
+      <button @click="showNewList = !showNewList; newListName = ''"
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-100 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        New List
+      </button>
+      <!-- Inline new-list form (dropdown) -->
+      <div x-show="showNewList" x-cloak @click.outside="showNewList = false"
+           class="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-64">
+        <form method="post" action="/shopping-list/new" @submit="showNewList = false">
+          <p class="text-xs text-gray-500 mb-2 font-medium">New shopping list name</p>
+          <input x-model="newListName" name="name" type="text"
+                 placeholder="e.g. Weekly Shop, Party Supplies"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand mb-2"
+                 x-init="$watch('showNewList', v => v && $nextTick(() => $el.focus()))">
+          <div class="flex gap-2">
+            <button type="submit"
+                    class="flex-1 bg-brand text-white text-sm font-semibold py-1.5 rounded-lg hover:bg-brand-dark transition-colors">
+              Create
+            </button>
+            <button type="button" @click="showNewList = false"
+                    class="px-3 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Import section ──────────────────────────────────────────────── -->
+  <div x-show="showImport" x-transition class="mb-5 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-100">
+      <button @click="importTab = 'text'"
+              :class="importTab === 'text' ? 'border-b-2 border-brand text-brand' : 'text-gray-500 hover:text-gray-700'"
+              class="px-5 py-3 text-sm font-medium transition-colors">
+        Paste Text
+      </button>
+      <button @click="importTab = 'csv'"
+              :class="importTab === 'csv' ? 'border-b-2 border-brand text-brand' : 'text-gray-500 hover:text-gray-700'"
+              class="px-5 py-3 text-sm font-medium transition-colors">
+        Upload CSV
+      </button>
+      <button @click="importTab = 'manual'"
+              :class="importTab === 'manual' ? 'border-b-2 border-brand text-brand' : 'text-gray-500 hover:text-gray-700'"
+              class="px-5 py-3 text-sm font-medium transition-colors">
+        Add Manually
+      </button>
+    </div>
+
+    <!-- Tab: Paste Text -->
+    <div x-show="importTab === 'text'" class="p-5">
+      <p class="text-sm text-gray-500 mb-3">
+        Paste items from Woolworths Online, Coles, AnyList or any shopping list app — one item per line.
+        You can include quantities like "2x milk" or "500g oats".
+      </p>
+      <form method="post" action="/shopping-list/import/text">
+        <input type="hidden" name="list_id" value="{{ active_list.id }}">
+        <input type="hidden" name="list_name" value="{{ active_list.name }}">
+        <textarea name="raw_text" rows="8" placeholder="milk&#10;2x eggs&#10;500g rolled oats&#10;sourdough bread&#10;greek yoghurt"
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300
+                         focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand resize-none font-mono"></textarea>
+        <div class="mt-3 flex justify-end">
+          <button type="submit"
+                  class="px-5 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+            Import Items
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Tab: Upload CSV -->
+    <div x-show="importTab === 'csv'" class="p-5">
+      <p class="text-sm text-gray-500 mb-3">
+        CSV should have a <code class="bg-gray-100 px-1 rounded text-xs">Name</code> column.
+        Optional: <code class="bg-gray-100 px-1 rounded text-xs">Qty</code>,
+        <code class="bg-gray-100 px-1 rounded text-xs">Unit</code>,
+        <code class="bg-gray-100 px-1 rounded text-xs">Notes</code> columns.
+      </p>
+      <form method="post" action="/shopping-list/import/csv" enctype="multipart/form-data">
+        <input type="hidden" name="list_id" value="{{ active_list.id }}">
+        <input type="hidden" name="list_name" value="{{ active_list.name }}">
+        <div x-data="{ fname: '' }" class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-brand/50 transition-colors">
+          <label for="csv-upload" class="cursor-pointer block">
+            <svg class="w-8 h-8 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <p class="text-sm text-gray-500">Click to choose a CSV file</p>
+            <p class="text-xs text-gray-400 mt-1" x-text="fname || 'No file selected'"></p>
+          </label>
+          <input type="file" name="file" accept=".csv" id="csv-upload" class="hidden"
+                 @change="fname = $event.target.files[0]?.name || ''">
+        </div>
+        <div class="mt-3 flex justify-end">
+          <button type="submit"
+                  class="px-5 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+            Import CSV
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Tab: Add Manually -->
+    <div x-show="importTab === 'manual'" class="p-5">
+      <p class="text-sm text-gray-500 mb-3">Add a single item to your list.</p>
+      <form hx-post="/partials/shopping-list/{{ active_list.id }}/item"
+            hx-target="#items-list"
+            hx-swap="beforeend"
+            @htmx:after-request="$el.reset()">
+        <div class="flex gap-2">
+          <input type="text" name="name" placeholder="Item name (e.g. full cream milk)"
+                 required autocomplete="off"
+                 class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+          <input type="number" name="qty" value="1" min="0.1" step="0.1" placeholder="Qty"
+                 class="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+          <input type="text" name="unit" placeholder="unit"
+                 class="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+          <button type="submit"
+                  class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+            Add
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Store basket totals ──────────────────────────────────────────── -->
+  {% with oob=False, list_id=active_list.id %}
+    {% include "partials/basket_totals.html" %}
+  {% endwith %}
+
+  <!-- ── Bulk select bar ─────────────────────────────────────────────── -->
+  {% if active_list.items %}
+  <div class="flex items-center gap-3 mb-2 px-1">
+    <button type="button" @click="selectedIds.length > 0 ? clearSelection() : selectAll()"
+            class="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors group">
+      <span class="w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0"
+            :class="selectedIds.length > 0 ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 group-hover:border-indigo-400'">
+        <svg x-show="selectedIds.length > 0" class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+        </svg>
+      </span>
+      <span x-text="selectedIds.length > 0 ? selectedIds.length + ' selected · click to deselect all' : 'Select all'"></span>
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- ── Items list ───────────────────────────────────────────────────── -->
+  <div id="items-list" class="flex flex-col gap-2">
+    {% if items_with_results %}
+      {% for row in items_with_results %}
+        {% with item=row.item, results=row.results, results_volume=row.results_volume, results_weight=row.results_weight, results_count=row.results_count, list_id=active_list.id %}
+          {% include "partials/shopping_list_item.html" %}
+        {% endwith %}
+      {% endfor %}
+    {% elif not active_list.items %}
+      <!-- Empty state -->
+      <div class="flex flex-col items-center justify-center py-16 text-center">
+        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </div>
+        <h3 class="text-base font-semibold text-gray-900 mb-1">Your shopping list is empty</h3>
+        <p class="text-sm text-gray-400 max-w-xs">
+          Paste items from Woolworths Online or any shopping list app using the "Add Items" button above.
+        </p>
+        <button @click="showImport = true; importTab = 'text'"
+                class="mt-4 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+          Add Items
+        </button>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Floating bulk action bar ────────────────────────────────────── -->
+  <div x-show="selectedIds.length > 0" x-cloak
+       class="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+              bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0 translate-y-3"
+       x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="opacity-100 translate-y-0"
+       x-transition:leave-end="opacity-0 translate-y-3">
+    <span class="text-sm font-semibold"
+          x-text="selectedIds.length + ' item' + (selectedIds.length !== 1 ? 's' : '') + ' selected'"></span>
+    <div class="w-px h-4 bg-white/20"></div>
+    <button @click="bulkSearch()" :disabled="searching"
+            class="flex items-center gap-1.5 text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
+      <svg class="w-3.5 h-3.5" :class="searching ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      Search stores
+    </button>
+    <div class="w-px h-4 bg-white/20"></div>
+    <button @click="bulkDelete()"
+            class="flex items-center gap-1.5 text-sm font-medium text-red-400 hover:text-red-300 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+      Delete
+    </button>
+    <div class="w-px h-4 bg-white/20"></div>
+    <button @click="clearSelection()"
+            class="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+      Cancel
+    </button>
+  </div>
+
+</div>
+{% endblock %}

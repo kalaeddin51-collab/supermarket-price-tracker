@@ -1,0 +1,60 @@
+{% set store_colors = {
+  "woolworths": "#007D40",
+  "coles": "#E31A2F",
+  "harris_farm": "#F27200",
+  "iga_crows_nest": "#D2232A",
+  "iga_milsons_point": "#D2232A",
+  "iga_north_sydney": "#D2232A"
+} %}
+{% set store_labels = {
+  "woolworths": "Woolworths",
+  "coles": "Coles",
+  "harris_farm": "Harris Farm",
+  "iga_crows_nest": "IGA Crows Nest",
+  "iga_milsons_point": "IGA Milsons Pt",
+  "iga_north_sydney": "IGA North Syd"
+} %}
+
+<div id="basket-totals"
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}
+     hx-get="/partials/shopping-list/{{ list_id }}/totals"
+     hx-trigger="basket-refresh from:body"
+     hx-swap="outerHTML">
+
+  {% if store_totals %}
+  <div class="mb-5">
+    <h2 class="section-header text-sm font-semibold text-gray-700 mb-3">Basket Totals by Store</h2>
+    <p class="text-xs text-gray-400 mb-2">Normalised to the same quantity for a fair comparison.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      {% for store_slug, total, found_items, total_items in store_totals %}
+      {% set is_cheapest = loop.index == 1 %}
+      {% set cheapest_total = store_totals[0][1] if store_totals else 0 %}
+      {% set savings = total - cheapest_total if not is_cheapest else 0 %}
+      <div class="relative flex flex-col items-center justify-center p-3 rounded-xl border
+                  {% if is_cheapest %}bg-brand-light border-brand/30 shadow-sm{% else %}bg-white border-gray-200{% endif %}
+                  text-center">
+        {% if is_cheapest %}
+        <span class="absolute -top-2 left-1/2 -translate-x-1/2 bg-brand text-white text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+          BEST VALUE
+        </span>
+        {% endif %}
+        <div class="w-2.5 h-2.5 rounded-full mb-1" style="background-color: {{ store_colors.get(store_slug, '#6b7280') }}"></div>
+        <div class="text-xs font-medium text-gray-600 mb-0.5">
+          {{ store_labels.get(store_slug, store_slug | replace("Store.", "") | replace("_"," ") | title) }}
+        </div>
+        <div class="text-lg font-bold {% if is_cheapest %}text-brand{% else %}text-gray-900{% endif %}">${{ "%.2f"|format(total) }}</div>
+        {% if savings > 0.005 %}
+        <div class="text-[10px] text-red-500 font-medium">+${{ "%.2f"|format(savings) }} more</div>
+        {% endif %}
+        {% if found_items < total_items %}
+        <div class="text-[10px] text-amber-500 mt-0.5">{{ found_items }}/{{ total_items }} items found</div>
+        {% else %}
+        <div class="text-[10px] text-gray-400 mt-0.5">{{ found_items }}/{{ total_items }} items</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>

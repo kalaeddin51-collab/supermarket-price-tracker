@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+{% block title %}Search Products{% endblock %}
+
+{% block content %}
+
+<!-- ── Search hero ────────────────────────────────────────────────────── -->
+<div class="max-w-3xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-1 tracking-tight">Find the freshest deals</h1>
+    <p class="text-sm text-gray-500">Compare prices across Woolworths, Coles, Harris Farm and IGA — instantly.</p>
+  </div>
+
+  <!-- Store filter + search input + price filter + brand filter, Alpine manages state -->
+  <div x-data="{
+         activeStore: '{{ store or "all" }}',
+         priceMin: '',
+         priceMax: '',
+         sortOrder: '{{ default_sort or "" }}',
+         selectedBrands: [],
+         showFilters: false,
+         freshOnly: false,
+         activeCategory: '',
+         subcategories: [],
+         triggerSearch() {
+           document.getElementById('store-input').value = this.activeStore;
+           document.getElementById('price-min-input').value = this.priceMin;
+           document.getElementById('price-max-input').value = this.priceMax;
+           document.getElementById('sort-input').value = this.sortOrder;
+           document.getElementById('brand-input').value = this.selectedBrands.join(',');
+           document.getElementById('fresh-input').value = this.freshOnly ? '1' : '';
+           htmx.trigger(document.getElementById('search-input'), 'filters-changed');
+         },
+         selectCategory(label, subs) {
+           if (this.activeCategory === label) {
+             this.activeCategory = '';
+             this.subcategories = [];
+           } else {
+             this.activeCategory = label;
+             this.subcategories = subs;
+           }
+         },
+         runSearch(keyword) {
+           this.selectedBrands = [];
+           document.getElementById('brand-input').value = '';
+           const input = document.getElementById('search-input');
+           input.value = keyword;
+           htmx.trigger(input, 'filters-changed');
+         },
+         toggleBrand(b) {
+           this.selectedBrands = this.selectedBrands.includes(b)
+             ? this.selectedBrands.filter(x => x !== b)
+             : [...this.selectedBrands, b];
+           this.triggerSearch();
+         },
+         clearBrands() {
+           this.selectedBrands = [];
+           this.triggerSearch();
+         }
+       }"
+       @brand-toggle.window="toggleBrand($event.detail.brand)"
+       @brand-clear.window="clearBrands()"
+       x-init="
+         $watch('activeStore', () => triggerSearch());
+         $watch('priceMin',    () => triggerSearch());
+         $watch('priceMax',    () => triggerSearch());
+         $watch('sortOrder',   () => triggerSearch());
+         $watch('freshOnly',   () => triggerSearch());
+         // Auto-load results if default store or sort is set and there's a query
+         $nextTick(() => {
+           const q = document.getElementById('search-input').value.trim();
+           if (q.length >= 2 && (sortOrder !== '' || activeStore !== 'all' || activeStore.includes(','))) {
+             triggerSearch();
+           }
+         });
+       ">
+
+    <!-- From-suburb banner (shown when user has a saved suburb preference) -->
+    {% if user_suburb %}
+    <div class="flex items-center gap-2 text-xs font-semibold text-brand bg-brand-light border border-green-200
+                px-3 py-2 rounded-full w-fit mb-3">
+      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Stores near {{ user_suburb }}
+      <a href="/" class="ml-1 text-gray-400 hover:text-gray-600 transition-colors" title="Change suburb">✕</a>
+    </div>
+    {% endif %}
+
+    <!-- Store filter pills — dynamic based on user's saved suburb preferences -->
+    {% set all_non_iga = [
+      ('woolworths',  '#007D40'),
+      ('coles',       '#E31A2F'),
+      ('harris_farm', '#F27200'),
+    ] %}
+    {% set all_iga_slugs = ['iga_north_sydney', 'iga_milsons_point', 'iga_crows_nest'] %}
+
+    {# Collect non-IGA and IGA slugs separately so we can consolidate IGA into one pill #}
+    {% set ns = namespace(non_iga=[], iga_slugs=[]) %}
+    {% if user_stores %}
+      {% for slug, color in all_non_iga %}
+        {% if slug in user_stores %}
+          {% set ns.non_iga = ns.non_iga + [(slug, color)] %}
+        {% endif %}
+      {% endfor %}
+      {% for slug in all_iga_slugs %}
+        {% if slug in user_stores %}
+          {% set ns.iga_slugs = ns.iga_slugs + [slug] %}
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      {# No preference saved — show all stores #}
+      {% set ns.non_iga = all_non_iga %}
+      {% set ns.iga_slugs = all_iga_slugs %}
+    {% endif %}
+
+    {# Comma-joined IGA slugs for the consolidated pill's activeStore value #}
+    {% set iga_store_val = ns.iga_slugs | join(',') %}
+
+    {# Suburb suffix for context labels #}
+    {% set suburb_suffix = ' near ' + user_suburb.title() if user_suburb else '' %}
+
+    <div class="flex gap-2 flex-wrap mb-4">
+      {# Always show All Stores pill first #}
+      <button type="button"
+        @click="activeStore = 'all'"
+        :class="activeStore === 'all'
+          ? 'text-white shadow-sm'
+          : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+        :style="activeStore === 'all' ? 'background:#374151' : ''"
+        class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all">
+        All Stores
+      </button>
+
+      {# Non-IGA individual pills (Woolworths, Coles, Harris Farm) #}
+      {% for slug, color in ns.non_iga %}
+      <button type="button"
+        @click="activeStore = '{{ slug }}'"
+        :class="activeStore === '{{ slug }}'
+          ? 'text-white shadow-sm'
+          : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+        :style="activeStore === '{{ slug }}' ? 'background:{{ color }}' : ''"
+        class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all">
+        {% if slug == 'harris_farm' %}Harris Farm{{ suburb_suffix }}{% else %}{{ store_label(slug) }}{% endif %}
+      </button>
+      {% endfor %}
+
+      {# Consolidated IGA pill — one button selects all nearby IGA stores #}
+      {% if ns.iga_slugs %}
+      <button type="button"
+        @click="activeStore = '{{ iga_store_val }}'"
+        :class="activeStore.includes('iga_')
+          ? 'text-white shadow-sm'
+          : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+        :style="activeStore.includes('iga_') ? 'background:#D2232A' : ''"
+        class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all">
+        IGA{{ suburb_suffix }}
+      </button>
+      {% endif %}
+
+      <!-- Sort buttons -->
+      <div class="flex items-center gap-1 ml-auto">
+        <button type="button"
+          @click="sortOrder = sortOrder === 'asc' ? '' : 'asc'"
+          :class="sortOrder === 'asc' ? 'bg-brand text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+          class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+          Low–High
+        </button>
+        <button type="button"
+          @click="sortOrder = sortOrder === 'desc' ? '' : 'desc'"
+          :class="sortOrder === 'desc' ? 'bg-brand text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+          class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+          High–Low
+        </button>
+      </div>
+
+      <!-- Fresh only toggle -->
+      <button type="button"
+        @click="freshOnly = !freshOnly"
+        :class="freshOnly ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+        class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
+        </svg>
+        Fresh only
+      </button>
+
+      <!-- Price filter toggle -->
+      <button type="button"
+        @click="showFilters = !showFilters"
+        :class="showFilters || priceMin || priceMax
+          ? 'bg-brand text-white shadow-sm'
+          : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
+        class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+        </svg>
+        <span x-text="(priceMin || priceMax) ? 'Price filter on' : 'Price'"></span>
+      </button>
+    </div>
+
+    <!-- Price filter panel -->
+    <div x-show="showFilters" x-cloak
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4 flex items-center gap-4 flex-wrap">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Price range</span>
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+          <input type="number" min="0" step="0.50" placeholder="Min"
+            x-model="priceMin"
+            class="w-24 pl-6 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+        </div>
+        <span class="text-gray-400 text-sm">—</span>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+          <input type="number" min="0" step="0.50" placeholder="Max"
+            x-model="priceMax"
+            class="w-24 pl-6 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+        </div>
+      </div>
+      <!-- Quick preset buttons -->
+      <div class="flex gap-2 flex-wrap">
+        <template x-for="[lo, hi] in [[0,5],[5,10],[10,20],[20,50]]">
+          <button type="button"
+            @click="priceMin = lo; priceMax = hi"
+            :class="priceMin == lo && priceMax == hi ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+            x-text="`$${lo}–$${hi}`">
+          </button>
+        </template>
+        <button type="button"
+          @click="priceMin = ''; priceMax = ''"
+          x-show="priceMin || priceMax"
+          class="px-3 py-1.5 rounded-full text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all">
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Hidden inputs — Alpine keeps them in sync -->
+    <input type="hidden" id="store-input"     name="store"      value="{{ store or 'all' }}">
+    <input type="hidden" id="price-min-input" name="price_min"  value="">
+    <input type="hidden" id="price-max-input" name="price_max"  value="">
+    <input type="hidden" id="sort-input"      name="sort"       value="{{ default_sort or '' }}">
+    <input type="hidden" id="brand-input"     name="brand"      value="">
+    <input type="hidden" id="fresh-input"     name="fresh"      value="">
+
+    <!-- Search input -->
+    <div class="relative">
+      <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input
+        id="search-input"
+        type="text"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search for milk, bread, eggs, olive oil…"
+        autocomplete="off"
+        hx-get="/partials/search-results"
+        hx-trigger="keyup changed delay:350ms, filters-changed"
+        hx-target="#search-results"
+        hx-include="#store-input, #price-min-input, #price-max-input, #sort-input, #brand-input, #fresh-input"
+        hx-indicator="#search-spinner"
+        class="w-full pl-12 pr-12 py-3.5 bg-white border border-gray-200 rounded-2xl text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent placeholder-gray-400 transition-shadow"
+      >
+      <!-- Spinner -->
+      <span id="search-spinner" class="htmx-indicator absolute right-4 top-1/2 -translate-y-1/2">
+        <svg class="animate-spin w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+      </span>
+    </div>
+
+    <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Live search across Woolworths, Coles, Harris Farm and IGA stores.
+    </p>
+
+    <!-- ── Category grid ── -->
+    {% set categories = [
+      ('🥛', 'Dairy',    'from-sky-100 to-blue-200',   ['Full Cream Milk','Skim Milk','Soy Milk','Almond Milk','Oat Milk','Lactose Free Milk','Butter','Cream','Sour Cream','Yoghurt']),
+      ('🥚', 'Eggs',     'from-amber-100 to-yellow-200',['Free Range Eggs','Cage Free Eggs','Organic Eggs']),
+      ('🧀', 'Cheese',   'from-yellow-100 to-amber-200',['Tasty Cheese','Cheddar','Brie','Mozzarella','Parmesan','Feta','Cream Cheese','Ricotta','Gouda','Grated Cheese']),
+      ('🥩', 'Meat',     'from-red-100 to-rose-200',    ['Chicken Breast','Chicken Thighs','Chicken Mince','Beef Mince','Beef Steak','Lamb Chops','Pork Chops','Bacon','Ham','Sausages']),
+      ('🐟', 'Seafood',  'from-cyan-100 to-teal-200',   ['Salmon','Tuna','Prawns','Fish Fillets','Barramundi','Calamari','Sardines']),
+      ('🥦', 'Produce',  'from-green-100 to-emerald-200',['Broccoli','Spinach','Tomatoes','Carrots','Onions','Avocado','Capsicum','Mushrooms','Potato','Garlic','Cucumber','Lettuce']),
+      ('🍞', 'Bread',    'from-orange-100 to-amber-200',['Sourdough','White Bread','Wholemeal Bread','Multigrain Bread','Bread Rolls','Wraps','Crumpets','English Muffins','Pita Bread']),
+      ('🥫', 'Pantry',   'from-stone-100 to-gray-200',  ['Pasta','Rice','Flour','Sugar','Canned Tomatoes','Pasta Sauce','Coconut Milk','Soy Sauce','Honey','Jam','Peanut Butter','Vegemite']),
+      ('🫒', 'Oils',     'from-lime-100 to-green-200',  ['Olive Oil','Extra Virgin Olive Oil','Coconut Oil','Vegetable Oil','Canola Oil','Sesame Oil']),
+      ('🥤', 'Drinks',   'from-purple-100 to-violet-200',['Orange Juice','Apple Juice','Sparkling Water','Soft Drink','Coconut Water','Kombucha','Energy Drink']),
+      ('❄️', 'Frozen',   'from-blue-100 to-indigo-200', ['Frozen Vegetables','Ice Cream','Frozen Pizza','Frozen Chips','Frozen Berries','Frozen Seafood','Frozen Meals']),
+      ('☕', 'Coffee',   'from-brown-100 to-amber-300', ['Ground Coffee','Instant Coffee','Coffee Pods','Tea Bags','Green Tea','Herbal Tea','Hot Chocolate']),
+      ('🍫', 'Snacks',   'from-pink-100 to-rose-200',   ['Chips','Chocolate','Biscuits','Nuts','Crackers','Popcorn','Muesli Bars','Dried Fruit']),
+      ('🧹', 'Cleaning', 'from-slate-100 to-blue-200',  ['Dishwashing Liquid','Laundry Detergent','Bleach','All Purpose Cleaner','Toilet Paper','Paper Towel','Sponges']),
+    ] %}
+
+    <div class="mt-5">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Browse by category</p>
+
+      <!-- Photo-style category cards -->
+      <div class="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        {% for icon, label, grad, subs in categories %}
+        <button type="button"
+          data-label="{{ label }}"
+          data-subs="{{ subs | tojson | forceescape }}"
+          @click="selectCategory($el.dataset.label, JSON.parse($el.dataset.subs))"
+          :class="activeCategory === '{{ label }}' ? 'ring-2 ring-brand ring-offset-1 shadow-lg scale-[1.03]' : 'hover:scale-[1.02] hover:shadow-md'"
+          class="group relative overflow-hidden rounded-2xl aspect-square bg-gradient-to-br {{ grad }} transition-all duration-200 cursor-pointer">
+          <!-- Overlay on active -->
+          <div :class="activeCategory === '{{ label }}' ? 'opacity-20' : 'opacity-0 group-hover:opacity-10'"
+               class="absolute inset-0 bg-brand transition-opacity duration-200 rounded-2xl"></div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 p-1">
+            <span class="text-2xl leading-none drop-shadow-sm">{{ icon }}</span>
+            <span class="text-[10px] sm:text-xs font-bold leading-tight text-center text-gray-700">{{ label }}</span>
+          </div>
+        </button>
+        {% endfor %}
+      </div>
+
+      <!-- Subcategory expand panel -->
+      <div x-show="subcategories.length > 0"
+           x-cloak
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 -translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           class="mt-3 bg-white border border-brand/20 rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-bold text-brand uppercase tracking-widest" x-text="activeCategory"></span>
+          <button type="button" @click="activeCategory = ''; subcategories = []"
+            class="text-gray-300 hover:text-gray-500 transition-colors p-1 rounded-lg hover:bg-gray-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <template x-for="sub in subcategories" :key="sub">
+            <button type="button"
+              @click="runSearch(sub); activeCategory = ''; subcategories = []"
+              class="px-3.5 py-1.5 rounded-xl border border-gray-200 bg-gray-50 text-xs font-semibold text-gray-700
+                     hover:bg-brand hover:text-white hover:border-brand transition-all shadow-sm"
+              x-text="sub">
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Trending Drops — shown only when no active search ── -->
+    {% if trending and not query %}
+    <div class="mt-6" id="trending-drops-section"
+         x-show="!document.getElementById('search-input') || document.getElementById('search-input').value.length < 2"
+         x-init="$watch(() => document.getElementById('search-input')?.value, v => { $el.style.display = (v && v.length >= 2) ? 'none' : '' })"
+    >
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-base">🔥</span>
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Trending Drops</h2>
+        <span class="text-xs text-gray-400 font-normal normal-case tracking-normal">on special right now</span>
+      </div>
+      <div class="flex flex-col gap-2">
+        {% for t in trending %}
+        <div class="bg-white rounded-2xl border border-orange-100 shadow-sm p-3 flex items-center gap-3 hover:shadow-md hover:border-orange-200 transition-all">
+          <!-- Image -->
+          <div class="w-12 h-12 rounded-xl bg-orange-50 shrink-0 flex items-center justify-center overflow-hidden">
+            {% if t.product.image_url %}
+            <img src="{{ t.product.image_url }}" alt="{{ t.product.name }}" class="w-full h-full object-contain p-0.5">
+            {% else %}
+            <svg class="w-5 h-5 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z"/>
+            </svg>
+            {% endif %}
+          </div>
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-800 truncate">{{ t.product.name }}</p>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="store-pill text-[10px]" style="background:{{ store_color(t.product.store) }}">{{ store_label(t.product.store) }}</span>
+              {% if t.latest.on_special %}<span class="badge-spec text-[10px]">SPECIAL</span>{% endif %}
+            </div>
+          </div>
+          <!-- Price -->
+          <div class="text-right shrink-0">
+            <div class="text-lg font-bold text-gray-900 leading-none">${{ "%.2f"|format(t.latest.price) }}</div>
+            {% if t.latest.was_price and t.latest.was_price > t.latest.price %}
+            <div class="text-xs text-gray-400 line-through mt-0.5">${{ "%.2f"|format(t.latest.was_price) }}</div>
+            {% endif %}
+          </div>
+          <!-- Watch button -->
+          <form
+            hx-post="/partials/watchlist/add"
+            hx-target="#watchlist-feedback"
+            hx-swap="innerHTML"
+            hx-include="this"
+            class="shrink-0">
+            <input type="hidden" name="external_id" value="{{ t.product.external_id }}">
+            <input type="hidden" name="store"        value="{{ t.product.store.value if t.product.store and t.product.store.value is defined else t.product.store }}">
+            <input type="hidden" name="name"         value="{{ t.product.name }}">
+            <input type="hidden" name="url"          value="{{ t.product.url }}">
+            <input type="hidden" name="price"        value="{{ t.latest.price or '' }}">
+            <input type="hidden" name="unit"         value="{{ t.product.unit or '' }}">
+            <input type="hidden" name="image_url"    value="{{ t.product.image_url or '' }}">
+            <button type="submit"
+              class="flex items-center gap-1 text-xs font-semibold bg-brand-light text-brand hover:bg-brand hover:text-white border border-brand/20 hover:border-brand px-3 py-1.5 rounded-xl transition-all whitespace-nowrap">
+              ＋ Watch
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Results area — inside Alpine so brand dispatch works ── -->
+    <div id="search-results" class="mt-5">
+      {% if query %}
+      <div hx-get="/partials/search-results?q={{ query | urlencode }}&store={{ store or 'all' }}"
+           hx-trigger="load"
+           hx-target="#search-results">
+        <div class="flex items-center justify-center py-12 text-gray-400 gap-3">
+          <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Searching…
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>{# end Alpine component #}
+
+</div>{# end max-w container #}
+
+<div id="watchlist-feedback"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('search-input').focus();
+</script>
+{% endblock %}

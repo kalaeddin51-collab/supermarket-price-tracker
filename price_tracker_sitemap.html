@@ -1,0 +1,346 @@
+
+<style>
+  * { box-sizing: border-box; }
+  .sm-wrap { padding: 1rem 0; }
+  .top-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 0; }
+  .screen-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 100px; max-width: 140px; }
+  .connector-row { display: flex; gap: 10px; justify-content: center; margin: 0; }
+  .connector-col { flex: 1; min-width: 100px; max-width: 140px; display: flex; flex-direction: column; align-items: center; }
+  .vert-line { width: 1px; height: 20px; background: var(--color-border-secondary); }
+  .horiz-bar { height: 1px; width: 100%; background: var(--color-border-secondary); }
+  .screen-node {
+    width: 100%; border-radius: var(--border-radius-md);
+    border: 0.5px solid var(--color-border-secondary);
+    background: var(--color-background-secondary);
+    padding: 8px 6px; text-align: center; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .screen-node:hover { background: var(--color-background-tertiary); border-color: var(--color-border-primary); }
+  .screen-node.active { border-color: #534AB7; background: #EEEDFE; }
+  .screen-node.active .sn-title { color: #3C3489; }
+  .screen-node.active .sn-route { color: #534AB7; }
+  @media (prefers-color-scheme: dark) {
+    .screen-node.active { background: #26215C; border-color: #AFA9EC; }
+    .screen-node.active .sn-title { color: #CECBF6; }
+    .screen-node.active .sn-route { color: #AFA9EC; }
+  }
+  .sn-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); line-height: 1.3; }
+  .sn-route { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; font-family: var(--font-mono); }
+  .detail-panel {
+    margin-top: 20px; border-radius: var(--border-radius-lg);
+    border: 0.5px solid var(--color-border-tertiary);
+    background: var(--color-background-primary);
+    padding: 16px 20px; display: none;
+  }
+  .detail-panel.visible { display: block; }
+  .dp-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .dp-title { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
+  .dp-route { font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+  .dp-desc { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 14px; line-height: 1.6; }
+  .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .action-pill {
+    border-radius: var(--border-radius-md);
+    border: 0.5px solid var(--color-border-tertiary);
+    padding: 7px 10px; font-size: 12px;
+    color: var(--color-text-primary); line-height: 1.4;
+    background: var(--color-background-secondary);
+  }
+  .action-pill .ap-label { font-size: 10px; font-weight: 500; margin-bottom: 2px; }
+  .ap-label.nav { color: #185FA5; }
+  .ap-label.act { color: #0F6E56; }
+  .ap-label.sys { color: #854F0B; }
+  .ap-label.data { color: #712B13; }
+  @media (prefers-color-scheme: dark) {
+    .ap-label.nav { color: #85B7EB; }
+    .ap-label.act { color: #5DCAA5; }
+    .ap-label.sys { color: #EF9F27; }
+    .ap-label.data { color: #F0997B; }
+  }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-text-secondary); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .leg-nav { background: #378ADD; }
+  .leg-act { background: #1D9E75; }
+  .leg-sys { background: #BA7517; }
+  .leg-data { background: #D85A30; }
+  .subpages { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .sub-node {
+    width: 100%; border-radius: var(--border-radius-md);
+    border: 0.5px dashed var(--color-border-tertiary);
+    background: var(--color-background-primary);
+    padding: 6px; text-align: center; cursor: pointer;
+    transition: background 0.15s; user-select: none;
+  }
+  .sub-node:hover { background: var(--color-background-secondary); }
+  .sub-node.active { border-color: #534AB7; border-style: solid; }
+  .sub-title { font-size: 11px; color: var(--color-text-secondary); }
+  .sub-route { font-size: 10px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+  .home-node {
+    display: flex; justify-content: center; margin-bottom: 0;
+  }
+  .home-box {
+    border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+    padding: 8px 24px; text-align: center; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--color-text-primary);
+    transition: background 0.15s; user-select: none;
+  }
+  .home-box:hover { background: var(--color-background-tertiary); }
+  .home-box.active { border-color: #534AB7; background: #EEEDFE; color: #3C3489; }
+  @media (prefers-color-scheme: dark) {
+    .home-box.active { background: #26215C; color: #CECBF6; border-color: #AFA9EC; }
+  }
+  .tree-lines { display: flex; justify-content: center; height: 20px; position: relative; }
+  .branch-container { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+</style>
+
+<div class="sm-wrap">
+
+<div class="home-node">
+  <div class="home-box" id="node-home" onclick="select('home')">
+    Home / Landing
+    <div style="font-size:10px;color:var(--color-text-tertiary);font-family:var(--font-mono);margin-top:2px;">/</div>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:center;"><div style="width:1px;height:20px;background:var(--color-border-secondary);"></div></div>
+<div style="display:flex;justify-content:center;position:relative;height:1px;margin-bottom:0;">
+  <div style="position:absolute;top:0;left:calc(50% - 300px);right:calc(50% - 300px);height:1px;background:var(--color-border-secondary);"></div>
+</div>
+<div style="height:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+  <div style="flex:1;min-width:100px;max-width:140px;display:flex;justify-content:center;"><div style="width:1px;height:10px;background:var(--color-border-secondary);"></div></div>
+  <div style="flex:1;min-width:100px;max-width:140px;display:flex;justify-content:center;"><div style="width:1px;height:10px;background:var(--color-border-secondary);"></div></div>
+  <div style="flex:1;min-width:100px;max-width:140px;display:flex;justify-content:center;"><div style="width:1px;height:10px;background:var(--color-border-secondary);"></div></div>
+  <div style="flex:1;min-width:100px;max-width:140px;display:flex;justify-content:center;"><div style="width:1px;height:10px;background:var(--color-border-secondary);"></div></div>
+  <div style="flex:1;min-width:100px;max-width:140px;display:flex;justify-content:center;"><div style="width:1px;height:10px;background:var(--color-border-secondary);"></div></div>
+</div>
+
+<div class="top-row">
+  <div class="screen-col">
+    <div class="screen-node" id="node-search" onclick="select('search')">
+      <div class="sn-title">Search</div>
+      <div class="sn-route">/search</div>
+    </div>
+    <div class="subpages">
+      <div class="sub-node" id="node-results" onclick="select('results')">
+        <div class="sub-title">Results</div>
+        <div class="sub-route">/search?q=</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-col">
+    <div class="screen-node" id="node-product" onclick="select('product')">
+      <div class="sn-title">Product detail</div>
+      <div class="sn-route">/product/:id</div>
+    </div>
+    <div class="subpages">
+      <div class="sub-node" id="node-history" onclick="select('history')">
+        <div class="sub-title">Price history</div>
+        <div class="sub-route">/product/:id/history</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-col">
+    <div class="screen-node" id="node-watchlist" onclick="select('watchlist')">
+      <div class="sn-title">Watchlist</div>
+      <div class="sn-route">/watchlist</div>
+    </div>
+    <div class="subpages">
+      <div class="sub-node" id="node-alerts" onclick="select('alerts')">
+        <div class="sub-title">Alert settings</div>
+        <div class="sub-route">/watchlist/alerts</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-col">
+    <div class="screen-node" id="node-compare" onclick="select('compare')">
+      <div class="sn-title">Compare</div>
+      <div class="sn-route">/compare</div>
+    </div>
+  </div>
+  <div class="screen-col">
+    <div class="screen-node" id="node-settings" onclick="select('settings')">
+      <div class="sn-title">Settings</div>
+      <div class="sn-route">/settings</div>
+    </div>
+    <div class="subpages">
+      <div class="sub-node" id="node-stores" onclick="select('stores')">
+        <div class="sub-title">Store prefs</div>
+        <div class="sub-route">/settings/stores</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="detail" class="detail-panel"></div>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot leg-nav"></div>Navigate</div>
+  <div class="leg-item"><div class="leg-dot leg-act"></div>User action</div>
+  <div class="leg-item"><div class="leg-dot leg-sys"></div>System trigger</div>
+  <div class="leg-item"><div class="leg-dot leg-data"></div>Data operation</div>
+</div>
+
+</div>
+
+<script>
+const screens = {
+  home: {
+    title: 'Home / Landing',
+    route: '/',
+    desc: 'Entry point. Orients new and returning users. Sets location context and surfaces quick-start actions.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Auto-detect suburb (geolocation API)' },
+      { type: 'act', label: 'User action', text: 'Set / change location manually' },
+      { type: 'nav', label: 'Navigate', text: 'Go to Search' },
+      { type: 'nav', label: 'Navigate', text: 'Go to Watchlist' },
+      { type: 'act', label: 'User action', text: 'Browse by category (produce, pantry...)' },
+      { type: 'sys', label: 'System', text: 'Show "biggest drops today" banner' },
+    ]
+  },
+  search: {
+    title: 'Search',
+    route: '/search',
+    desc: 'Core discovery screen. User enters a product name or barcode; system queries across all chains.',
+    actions: [
+      { type: 'act', label: 'User action', text: 'Type product name / keyword' },
+      { type: 'act', label: 'User action', text: 'Scan barcode (camera)' },
+      { type: 'sys', label: 'System', text: 'Fuzzy match across chain product names' },
+      { type: 'act', label: 'User action', text: 'Filter by store (Woolies, Coles, Harris Farm, IGA)' },
+      { type: 'act', label: 'User action', text: 'Sort by price / per-unit / name' },
+      { type: 'nav', label: 'Navigate', text: 'Tap result → Product detail' },
+    ]
+  },
+  results: {
+    title: 'Search results',
+    route: '/search?q=',
+    desc: 'List of matched products with per-unit price shown prominently for each chain.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Display per-unit price (per 100g / 100ml)' },
+      { type: 'sys', label: 'System', text: 'Show data freshness badge per result' },
+      { type: 'act', label: 'User action', text: 'Add item to watchlist inline' },
+      { type: 'act', label: 'User action', text: 'Add item to compare tray' },
+      { type: 'nav', label: 'Navigate', text: 'Tap product → Product detail' },
+      { type: 'act', label: 'User action', text: 'Refine / re-sort results' },
+    ]
+  },
+  product: {
+    title: 'Product detail',
+    route: '/product/:id',
+    desc: 'Deep view of a single product. Shows price across all chains, per-unit breakdown, and availability.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Show price at each chain side-by-side' },
+      { type: 'sys', label: 'System', text: 'Calculate & display per-unit cost' },
+      { type: 'act', label: 'User action', text: 'Add to / remove from watchlist' },
+      { type: 'act', label: 'User action', text: 'Add to compare tray' },
+      { type: 'nav', label: 'Navigate', text: 'View price history chart' },
+      { type: 'act', label: 'User action', text: 'Share product comparison (link / image card)' },
+      { type: 'sys', label: 'System', text: 'Show last-updated timestamp per store' },
+    ]
+  },
+  history: {
+    title: 'Price history',
+    route: '/product/:id/history',
+    desc: 'Time-series chart of price movements per chain. Helps users spot seasonal patterns or price creep.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Render price chart (30d / 90d / 1yr)' },
+      { type: 'act', label: 'User action', text: 'Toggle chains on/off in chart' },
+      { type: 'act', label: 'User action', text: 'Change time range' },
+      { type: 'sys', label: 'System', text: 'Annotate notable price events' },
+      { type: 'act', label: 'User action', text: 'Set alert from lowest-seen price' },
+    ]
+  },
+  watchlist: {
+    title: 'Watchlist',
+    route: '/watchlist',
+    desc: 'Saved products the user is tracking. Shows current best price and delta since last check.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Show price delta since item was added' },
+      { type: 'sys', label: 'System', text: 'Highlight items that hit alert threshold' },
+      { type: 'act', label: 'User action', text: 'Remove item from watchlist' },
+      { type: 'act', label: 'User action', text: 'Group items into baskets (e.g. weekly shop)' },
+      { type: 'nav', label: 'Navigate', text: 'Tap item → Product detail' },
+      { type: 'nav', label: 'Navigate', text: 'Go to Alert settings' },
+      { type: 'act', label: 'User action', text: 'Share watchlist basket' },
+    ]
+  },
+  alerts: {
+    title: 'Alert settings',
+    route: '/watchlist/alerts',
+    desc: 'Configure price-drop notifications per item or globally. Controls push and optional email digest.',
+    actions: [
+      { type: 'act', label: 'User action', text: 'Set price threshold per item' },
+      { type: 'act', label: 'User action', text: 'Toggle push notifications on/off' },
+      { type: 'act', label: 'User action', text: 'Set digest frequency (instant / daily / weekly)' },
+      { type: 'sys', label: 'System', text: 'Request push permission (first time)' },
+      { type: 'data', label: 'Data op', text: 'Save alert preferences to local store' },
+    ]
+  },
+  compare: {
+    title: 'Compare',
+    route: '/compare',
+    desc: 'Side-by-side comparison tray for up to 4 products. Surfaces the best value item clearly.',
+    actions: [
+      { type: 'sys', label: 'System', text: 'Normalise units for fair comparison' },
+      { type: 'sys', label: 'System', text: 'Highlight cheapest per-unit option' },
+      { type: 'act', label: 'User action', text: 'Remove product from tray' },
+      { type: 'act', label: 'User action', text: 'Add all to watchlist' },
+      { type: 'act', label: 'User action', text: 'Share comparison as image card' },
+      { type: 'nav', label: 'Navigate', text: 'Tap product → Product detail' },
+    ]
+  },
+  settings: {
+    title: 'Settings',
+    route: '/settings',
+    desc: 'App-level preferences. Location, default store list, notification defaults, data refresh.',
+    actions: [
+      { type: 'act', label: 'User action', text: 'Update home location / suburb' },
+      { type: 'act', label: 'User action', text: 'Set default store sort order' },
+      { type: 'nav', label: 'Navigate', text: 'Go to Store preferences' },
+      { type: 'act', label: 'User action', text: 'Toggle data refresh frequency' },
+      { type: 'data', label: 'Data op', text: 'Export / clear local watchlist data' },
+    ]
+  },
+  stores: {
+    title: 'Store preferences',
+    route: '/settings/stores',
+    desc: 'Choose which chains to include in searches and set nearest branches per chain.',
+    actions: [
+      { type: 'act', label: 'User action', text: 'Enable / disable each chain' },
+      { type: 'act', label: 'User action', text: 'Set preferred branch per chain' },
+      { type: 'sys', label: 'System', text: 'Show nearest branches via location' },
+      { type: 'data', label: 'Data op', text: 'Save store preferences' },
+    ]
+  },
+};
+
+let current = null;
+
+function select(id) {
+  if (current) {
+    const prev = document.getElementById('node-' + current);
+    if (prev) { prev.classList.remove('active'); }
+  }
+  const node = document.getElementById('node-' + id);
+  if (node) node.classList.add('active');
+  current = id;
+
+  const s = screens[id];
+  const panel = document.getElementById('detail');
+  const actHTML = s.actions.map(a =>
+    `<div class="action-pill"><div class="ap-label ${a.type}">${a.label}</div>${a.text}</div>`
+  ).join('');
+  panel.innerHTML = `
+    <div class="dp-header">
+      <span class="dp-title">${s.title}</span>
+      <span class="dp-route">${s.route}</span>
+    </div>
+    <div class="dp-desc">${s.desc}</div>
+    <div class="actions-grid">${actHTML}</div>
+  `;
+  panel.classList.add('visible');
+}
+
+select('home');
+</script>

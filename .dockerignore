@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.eggs
+dist
+build
+.venv
+venv
+env
+
+# Local database (don't bake it into the image)
+prices.db
+*.db
+
+# Development / docs
+*.bat
+*.md
+*.docx
+*.html
+design-thinking.html
+supermarket_price_tracker_journey_map.html
+price_tracker_sitemap.html
+
+# Tests
+tests/
+
+# Claude / IDE
+.claude/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

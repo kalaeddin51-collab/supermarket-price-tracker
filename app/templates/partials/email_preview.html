@@ -1,0 +1,55 @@
+<div class="border border-gray-200 rounded-lg overflow-hidden text-sm">
+  <!-- Email header -->
+  <div class="bg-emerald-700 text-white px-5 py-4">
+    <div class="font-bold text-base">🛒 Your Daily Price Update</div>
+    <div class="text-emerald-200 text-xs mt-0.5">North Sydney · Crows Nest · Milsons Point · Cammeray</div>
+  </div>
+
+  <div class="bg-white px-5 py-4">
+    {% if preview_items %}
+    <p class="text-gray-600 text-xs mb-4">Here's your price summary for today. Items marked ★ are currently on special.</p>
+
+    <table class="w-full text-xs border-collapse">
+      <thead>
+        <tr class="border-b border-gray-200">
+          <th class="text-left py-1.5 text-gray-500 font-medium">Product</th>
+          <th class="text-left py-1.5 text-gray-500 font-medium">Store</th>
+          <th class="text-right py-1.5 text-gray-500 font-medium">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in preview_items %}
+        <tr class="border-b border-gray-100 {% if item.latest and item.latest.on_special %}bg-orange-50{% endif %}">
+          <td class="py-2 text-gray-800 font-medium">
+            {% if item.latest and item.latest.on_special %}★ {% endif %}{{ item.product.name }}
+          </td>
+          <td class="py-2">
+            <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-semibold"
+              style="background:{{ store_color(item.product.store) }}">
+              {{ store_label(item.product.store) }}
+            </span>
+          </td>
+          <td class="py-2 text-right font-semibold text-gray-900">
+            {% if item.latest and item.latest.price %}
+            ${{ "%.2f"|format(item.latest.price) }}
+            {% if item.latest.was_price %}
+            <span class="text-gray-400 line-through font-normal ml-1">${{ "%.2f"|format(item.latest.was_price) }}</span>
+            {% endif %}
+            {% else %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="text-gray-400 text-[10px] mt-4">
+      Manage your watchlist and alert settings at your Price Tracker dashboard.
+      To unsubscribe, visit Settings and disable email notifications.
+    </p>
+    {% else %}
+    <p class="text-gray-400 text-center py-4">Add products to your watchlist to see them in your email digest.</p>
+    {% endif %}
+  </div>
+</div>

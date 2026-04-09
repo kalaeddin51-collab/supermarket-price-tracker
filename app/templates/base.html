@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Price Tracker{% endblock %} — North Sydney</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script>
+    /* Re-initialise Alpine on HTMX-swapped content so x-show / x-bind etc.
+       work on newly inserted elements.
+       For outerHTML swaps the original target is detached after the swap –
+       find the replacement by its ID and init Alpine on that instead. */
+    document.addEventListener('htmx:afterSwap', function (evt) {
+      if (!window.Alpine) return;
+      var target = evt.detail.target;
+      if (!target) return;
+
+      // outerHTML swap: target is now detached; find the new node by ID.
+      if (!target.isConnected && target.id) {
+        var newEl = document.getElementById(target.id);
+        if (newEl) {
+          Alpine.initTree(newEl);
+          return;
+        }
+      }
+      // Inner swaps: target is still connected.
+      // Only init if NOT already inside an active Alpine component
+      // (Alpine's MutationObserver handles those automatically).
+      if (target.isConnected && !(target.closest && target.closest('[x-data]'))) {
+        Alpine.initTree(target);
+      }
+    });
+
+    /* Load saved suburb into navbar from server */
+    function loadNavSuburb() {
+      fetch('/api/suburb').then(function(r){ return r.json(); }).then(function(d){
+        if (d.suburb) {
+          document.getElementById('nav-suburb-text').textContent = d.suburb;
+          document.getElementById('nav-suburb-tag').style.display = '';
+        }
+      }).catch(function(){});
+    }
+    document.addEventListener('DOMContentLoaded', loadNavSuburb);
+    /* Refresh navbar suburb when preferences are saved */
+    document.addEventListener('suburb-saved', loadNavSuburb);
+  </script>
+  {% block head_extra %}{% endblock %}
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .htmx-indicator { opacity: 0; transition: opacity 200ms; }
+    .htmx-request .htmx-indicator,
+    .htmx-request.htmx-indicator { opacity: 1; }
+    [x-cloak] { display: none !important; }
+
+    /* Smooth nav transitions */
+    .nav-link { transition: all 150ms ease; }
+
+    /* Card hover lift */
+    .card-lift { transition: box-shadow 200ms ease, transform 200ms ease; }
+    .card-lift:hover { box-shadow: 0 8px 24px rgba(0,0,0,.09); transform: translateY(-1px); }
+
+    /* Pill tag */
+    .store-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; color: #fff; white-space: nowrap; }
+
+    /* Price drop badge */
+    .badge-drop  { background:#d1fae5; color:#065f46; font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; }
+    .badge-rise  { background:#fee2e2; color:#991b1b; font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; }
+    .badge-spec  { background:#fff7ed; color:#c2410c; font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; }
+
+    /* Toggle switch */
+    .toggle-track { width:44px; height:24px; background:#d1d5db; border-radius:12px; position:relative; transition:background 200ms; cursor:pointer; }
+    .toggle-track.on { background:#059669; }
+    .toggle-thumb { width:18px; height:18px; background:#fff; border-radius:50%; position:absolute; top:3px; left:3px; transition:left 200ms; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+    .toggle-track.on .toggle-thumb { left:23px; }
+
+    /* Section header rule */
+    .section-header { border-left:3px solid #059669; padding-left:10px; }
+
+    /* Smooth page loads with HTMX boost */
+    .htmx-settling { opacity: 0; }
+    .htmx-added { opacity: 1; transition: opacity 200ms; }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand:       { DEFAULT:'#059669', light:'#d1fae5', dark:'#047857' },
+            woolworths:  '#007D40',
+            coles:       '#E31A2F',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-gray-50 text-gray-800">
+
+  <!-- ── Navigation ──────────────────────────────────────────────────── -->
+  <nav class="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 flex items-center h-14 gap-4">
+
+      <!-- Brand -->
+      <a href="/" class="flex items-center gap-2 shrink-0 group">
+        <span class="text-xl">🛒</span>
+        <span class="font-bold text-gray-900 group-hover:text-brand transition-colors">Price Tracker</span>
+      </a>
+
+      <!-- Area tag — shows saved suburb fetched from server -->
+      <span id="nav-suburb-tag" style="display:none"
+            class="hidden md:flex items-center gap-1 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-3 py-1">
+        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span id="nav-suburb-text"></span>
+      </span>
+
+      <!-- Nav links -->
+      <div class="ml-auto flex items-center gap-1">
+        {% if user is defined and user %}
+        <span class="hidden md:flex items-center gap-1.5 text-xs text-gray-500 mr-2">
+          <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          {{ user.name }}
+        </span>
+        <a href="/logout" class="nav-link flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+           text-gray-500 hover:bg-gray-100 hover:text-gray-900">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          <span class="hidden sm:inline">Sign out</span>
+        </a>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-1">
+        {% set nav_items = [
+          ('/dashboard', 'dashboard', 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', 'Dashboard'),
+          ('/search', 'search', 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', 'Search'),
+          ('/shopping-list', 'shopping_list', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', 'Shopping List'),
+          ('/watchlist', 'watchlist', 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z', 'Watchlist'),
+          ('/settings', 'settings', 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', 'Settings'),
+        ] %}
+        {% for href, key, icon_path, label in nav_items %}
+        <a href="{{ href }}" class="nav-link flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+          {% if page == key %}bg-brand-light text-brand{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon_path }}"/>
+          </svg>
+          <span class="hidden sm:inline">{{ label }}</span>
+          {% if key == 'watchlist' and watchlist_count is defined and watchlist_count %}
+            <span class="bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">{{ watchlist_count }}</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Stale data banner ────────────────────────────────────────────── -->
+  <div x-data="{ show: false, stale: [] }" x-cloak
+    x-init="
+      fetch('/api/scraper-status').then(r=>r.json()).then(d=>{
+        stale = Object.entries(d).filter(([k,v])=>v==='stale').map(([k])=>k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()));
+        show = stale.length > 0;
+      })
+    ">
+    <div x-show="show" class="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-800">
+      <div class="max-w-5xl mx-auto flex items-center gap-2">
+        <svg class="w-4 h-4 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+        </svg>
+        <span>Price data may be stale for: <strong x-text="stale.join(', ')"></strong></span>
+        <button @click="show=false" class="ml-auto p-1 text-amber-500 hover:text-amber-900 rounded transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast container ─────────────────────────────────────────────── -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ── Main content ────────────────────────────────────────────────── -->
+  <main class="max-w-5xl mx-auto px-4 py-7">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

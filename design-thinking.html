@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design Thinking — Supermarket Price Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:       #2563eb;
+      --brand-light: #eff6ff;
+      --brand-dark:  #1e40af;
+      --empathise:   #8b5cf6;
+      --define:      #ec4899;
+      --ideate:      #f59e0b;
+      --prototype:   #10b981;
+      --test:        #ef4444;
+      --text:        #111827;
+      --muted:       #6b7280;
+      --border:      #e5e7eb;
+      --bg:          #f9fafb;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ── Cover ───────────────────────────────────────── */
+    .cover {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #7c3aed 100%);
+      color: white;
+      padding: 80px 48px 64px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .cover-inner { position: relative; max-width: 900px; margin: 0 auto; }
+    .cover-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      padding: 4px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .cover h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      letter-spacing: -.02em;
+    }
+    .cover-sub {
+      font-size: 1.1rem;
+      opacity: .85;
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+    .cover-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+    }
+    .cover-meta-item { font-size: 13px; opacity: .75; }
+    .cover-meta-item strong { display: block; opacity: 1; font-size: 15px; font-weight: 600; }
+
+    /* ── Phases nav ──────────────────────────────────── */
+    .phases-nav {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .phases-nav-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      overflow-x: auto;
+      gap: 2px;
+    }
+    .phase-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+    .phase-tab:hover { color: var(--text); }
+    .phase-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Layout ──────────────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; padding: 48px 24px; }
+
+    /* ── Section headers ─────────────────────────────── */
+    .section {
+      margin-bottom: 64px;
+      scroll-margin-top: 60px;
+    }
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border);
+    }
+    .phase-number {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .section-header-text { flex: 1; }
+    .phase-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .section-header h2 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1.2;
+    }
+    .section-header p {
+      margin-top: 6px;
+      font-size: .925rem;
+      color: var(--muted);
+    }
+
+    /* ── Cards ───────────────────────────────────────── */
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .card p, .card li {
+      font-size: .9rem;
+      color: #374151;
+      line-height: 1.65;
+    }
+    .card ul { padding-left: 18px; }
+    .card li { margin-bottom: 4px; }
+
+    /* ── Grid ────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media(max-width: 680px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ── Persona card ────────────────────────────────── */
+    .persona {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .persona-header {
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .persona-avatar {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .persona-name { font-weight: 700; font-size: 1.05rem; }
+    .persona-desc { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+    .persona-body { padding: 0 24px 24px; }
+    .persona-body h4 {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 16px 0 6px;
+    }
+    .persona-body p, .persona-body li {
+      font-size: .875rem;
+      color: #374151;
+      line-height: 1.6;
+    }
+    .persona-body ul { padding-left: 16px; }
+    .persona-body li { margin-bottom: 3px; }
+    .quote {
+      border-left: 3px solid;
+      padding: 8px 14px;
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+      font-size: .875rem;
+      color: #374151;
+      background: var(--bg);
+      margin-top: 12px;
+    }
+
+    /* ── HMW / POV ───────────────────────────────────── */
+    .hmw {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 1px solid #fcd34d;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: .925rem;
+      font-weight: 500;
+      color: #92400e;
+      margin-bottom: 10px;
+    }
+    .hmw::before { content: 'HMW  '; font-weight: 800; }
+
+    /* ── Idea cards ──────────────────────────────────── */
+    .idea {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .idea-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 2px 10px;
+      margin-bottom: 10px;
+    }
+    .idea h4 { font-size: .9rem; font-weight: 700; margin-bottom: 6px; }
+    .idea p  { font-size: .83rem; color: var(--muted); line-height: 1.55; }
+
+    /* ── User journey ────────────────────────────────── */
+    .journey {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+    }
+    .journey-step {
+      flex: 1;
+      min-width: 140px;
+      text-align: center;
+      padding: 20px 12px;
+      position: relative;
+    }
+    .journey-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 20px;
+      color: var(--muted);
+    }
+    .journey-icon {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin: 0 auto 10px;
+    }
+    .journey-step h4 { font-size: .8rem; font-weight: 700; margin-bottom: 4px; }
+    .journey-step p  { font-size: .75rem; color: var(--muted); }
+
+    /* ── Feature matrix ──────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th {
+      background: var(--bg);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    .badge-green  { background: #d1fae5; color: #065f46; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+
+    /* ── Test findings ───────────────────────────────── */
+    .finding {
+      display: flex;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .finding:last-child { border-bottom: none; }
+    .finding-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .finding-text h4 { font-size: .875rem; font-weight: 700; margin-bottom: 3px; }
+    .finding-text p  { font-size: .825rem; color: #374151; }
+
+    /* ── Roadmap ─────────────────────────────────────── */
+    .roadmap-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+    .roadmap-phase {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .roadmap-items { font-size: .875rem; color: #374151; }
+
+    /* ── Principle cards ─────────────────────────────── */
+    .principle {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      border-top: 3px solid;
+    }
+    .principle-num {
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .principle h3 { font-size: .95rem; font-weight: 700; margin-bottom: 6px; }
+    .principle p  { font-size: .83rem; color: var(--muted); line-height: 1.55; }
+
+    /* ── Footer ──────────────────────────────────────── */
+    footer {
+      background: white;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: .825rem;
+      color: var(--muted);
+    }
+
+    /* Print ─────────────────────────────────────────── */
+    @media print {
+      .phases-nav { display: none; }
+      .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ COVER ══════════════════════════════ -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-tag">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Design Thinking Document
+    </div>
+    <h1>Supermarket Price<br>Tracker</h1>
+    <p class="cover-sub">A human-centred design exploration for a hyperlocal grocery price intelligence platform serving North Sydney residents.</p>
+    <div class="cover-meta">
+      <div class="cover-meta-item"><strong>Location</strong>North Sydney · Milsons Point · Crows Nest · Cammeray</div>
+      <div class="cover-meta-item"><strong>Version</strong>v0.2 — March 2026</div>
+      <div class="cover-meta-item"><strong>Methodology</strong>Stanford d.school Design Thinking</div>
+      <div class="cover-meta-item"><strong>Stage</strong>Prototype → Test</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ PHASE NAV ══════════════════════════════ -->
+<nav class="phases-nav">
+  <div class="phases-nav-inner">
+    <a href="#empathise" class="phase-tab"><span class="phase-dot" style="background:var(--empathise)"></span>Empathise</a>
+    <a href="#define"    class="phase-tab"><span class="phase-dot" style="background:var(--define)"></span>Define</a>
+    <a href="#ideate"    class="phase-tab"><span class="phase-dot" style="background:var(--ideate)"></span>Ideate</a>
+    <a href="#prototype" class="phase-tab"><span class="phase-dot" style="background:var(--prototype)"></span>Prototype</a>
+    <a href="#test"      class="phase-tab"><span class="phase-dot" style="background:var(--test)"></span>Test</a>
+    <a href="#roadmap"   class="phase-tab"><span class="phase-dot" style="background:var(--brand)"></span>Roadmap</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ════════════════════ 1. EMPATHISE ════════════════════ -->
+  <section class="section" id="empathise">
+    <div class="section-header">
+      <div class="phase-number" style="background:#f5f3ff; color:var(--empathise)">🔍</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--empathise)">Phase 1 — Empathise</div>
+        <h2>Understanding the User</h2>
+        <p>Research, observation and immersion into the lived experience of North Sydney grocery shoppers.</p>
+      </div>
+    </div>
+
+    <!-- Context -->
+    <div class="card" style="border-left: 4px solid var(--empathise);">
+      <h3>The North Sydney Grocery Landscape</h3>
+      <p>North Sydney is a dense, urban pocket with a mix of commuters, young professionals, and families. The area is served by multiple competing supermarket chains within walking distance of each other — Woolworths (Miller St), Coles (North Sydney), Harris Farm Markets (Crows Nest), and multiple IGA stores (Milsons Point, Cammeray, Greenwich). Residents are price-aware but time-poor, and the high cost of living in inner Sydney makes grocery costs a genuine household concern.</p>
+    </div>
+
+    <!-- Personas -->
+    <h3 style="font-size:1rem; font-weight:700; margin-bottom:16px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; font-size:.75rem;">User Personas</h3>
+    <div class="grid-2" style="margin-bottom: 16px;">
+
+      <div class="persona">
+        <div class="persona-header" style="background:#f5f3ff;">
+          <div class="persona-avatar" style="background:#ede9fe;">👩‍💼</div>
+          <div>
+            <div class="persona-name">Sarah, 34</div>
+            <div class="persona-desc">Marketing Manager, Milsons Point</div>
+          </div>
+        </div>
+        <div class="persona-body">
+          <h4>Context</h4>
+          <p>Works full-time, shops weekly. Budget-conscious but quality-driven — willing to go to Harris Farm for premium produce but watches prices closely.</p>
+          <h4>Pain Points</h4>
+          <ul>
+            <li>Doesn't know when items go on special until she's in the store</li>
+            <li>Frustrated by price differences across stores for identical products</li>
+            <li>No time to visit multiple stores to compare prices manually</li>
+          </ul>
+          <h4>Goals</h4>
+          <ul>
+            <li>Know the best store for each item without visiting each one</li>
+            <li>Get alerted when tracked products hit a target price</li>
+          </ul>
+          <div class="quote" style="border-color:var(--empathise);">"I spend $250 a week on groceries. Even saving 10% matters — that's $1,300 a year."</div>
+        </div>
+      </div>
+
+      <div class="persona">
+        <div class="persona-header" style="background:#fdf2f8;">
+          <div class="persona-avatar" style="background:#fce7f3;">👨‍👩‍👧</div>
+          <div>
+            <div class="persona-name">David & Priya, 41/38</div>
+            <div class="persona-desc">Family of 4, Crows Nest</div>
+          </div>
+        </div>
+        <div class="persona-body">
+          <h4>Context</h4>
+          <p>Two kids in school, both working. Weekly shop is a significant household expense. Loyal to Woolworths for convenience but open to switching if savings are clear.</p>
+          <h4>Pain Points</h4>
+          <ul>
+            <li>Milk, cheese, and staples vary wildly in price week to week</li>
+            <li>Can't track specials across stores simultaneously</li>
+            <li>Kids' favourite brands sometimes disappear without notice</li>
+          </ul>
+          <h4>Goals</h4>
+          <ul>
+            <li>Automated weekly summary of tracked items</li>
+            <li>Know which store is cheapest for their regular shop</li>
+          </ul>
+          <div class="quote" style="border-color:var(--define);">"We buy the same 40 items every week. We just want to know where to buy them cheapest."</div>
+        </div>
+      </div>
+
+      <div class="persona">
+        <div class="persona-header" style="background:#f0fdf4;">
+          <div class="persona-avatar" style="background:#dcfce7;">🧑‍🎓</div>
+          <div>
+            <div class="persona-name">Liam, 26</div>
+            <div class="persona-desc">Graduate Developer, North Sydney</div>
+          </div>
+        </div>
+        <div class="persona-body">
+          <h4>Context</h4>
+          <p>Renting, cooking for one or two. Price is his primary decision driver. Lives near multiple IGA stores and Woolworths. Comfortable with technology.</p>
+          <h4>Pain Points</h4>
+          <ul>
+            <li>Fixed income, grocery costs are unpredictable</li>
+            <li>Doesn't want to open multiple apps or websites</li>
+            <li>Would love push notifications to his phone</li>
+          </ul>
+          <h4>Goals</h4>
+          <ul>
+            <li>Single view of all prices, all stores</li>
+            <li>Instant push alerts when price drops</li>
+          </ul>
+          <div class="quote" style="border-color:var(--prototype);">"I track 12 products. I just want a notification when olive oil is under $10."</div>
+        </div>
+      </div>
+
+      <div class="persona">
+        <div class="persona-header" style="background:#fffbeb;">
+          <div class="persona-avatar" style="background:#fef3c7;">👴</div>
+          <div>
+            <div class="persona-name">Margaret, 67</div>
+            <div class="persona-desc">Retired, Cammeray</div>
+          </div>
+        </div>
+        <div class="persona-body">
+          <h4>Context</h4>
+          <p>On a pension. Shops at IGA Cammeray and occasionally Coles. Prefers email over apps. Values simplicity and reliability above all else.</p>
+          <h4>Pain Points</h4>
+          <ul>
+            <li>Doesn't trust complex apps or subscription services</li>
+            <li>Finds it hard to compare prices across store catalogues</li>
+            <li>Has been surprised by price rises on staples</li>
+          </ul>
+          <h4>Goals</h4>
+          <ul>
+            <li>Simple weekly email digest with tracked prices</li>
+            <li>No app to install, just a web page and email</li>
+          </ul>
+          <div class="quote" style="border-color:var(--ideate);">"Just tell me what changed this week. I don't need fancy graphs."</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Empathy insights -->
+    <div class="card">
+      <h3>Key Empathy Insights</h3>
+      <div class="grid-3" style="margin-top:12px;">
+        <div style="padding:12px; background:#f5f3ff; border-radius:10px;">
+          <div style="font-size:1.5rem; margin-bottom:6px;">⏱️</div>
+          <div style="font-size:.825rem; font-weight:700; margin-bottom:4px;">Time-poor, not price-indifferent</div>
+          <div style="font-size:.78rem; color:var(--muted);">Users care about price but can't invest time in manual comparison. Automation is the key enabler.</div>
+        </div>
+        <div style="padding:12px; background:#fdf2f8; border-radius:10px;">
+          <div style="font-size:1.5rem; margin-bottom:6px;">📍</div>
+          <div style="font-size:.825rem; font-weight:700; margin-bottom:4px;">Hyperlocal trust</div>
+          <div style="font-size:.78rem; color:var(--muted);">Users only trust prices from stores they can physically reach. National comparisons are irrelevant.</div>
+        </div>
+        <div style="padding:12px; background:#f0fdf4; border-radius:10px;">
+          <div style="font-size:1.5rem; margin-bottom:6px;">🔔</div>
+          <div style="font-size:.825rem; font-weight:700; margin-bottom:4px;">Pull vs Push</div>
+          <div style="font-size:.78rem; color:var(--muted);">Younger users want push alerts; older users prefer email digests. Both must be supported.</div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════ 2. DEFINE ════════════════════ -->
+  <section class="section" id="define">
+    <div class="section-header">
+      <div class="phase-number" style="background:#fdf2f8; color:var(--define)">🎯</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--define)">Phase 2 — Define</div>
+        <h2>Framing the Problem</h2>
+        <p>Synthesising research into actionable problem statements and design challenges.</p>
+      </div>
+    </div>
+
+    <!-- POV -->
+    <div class="card" style="background: linear-gradient(135deg,#fdf2f8,#fff); border-left:4px solid var(--define);">
+      <h3>Point of View Statement</h3>
+      <p style="margin-top:8px; font-size:1rem; line-height:1.75;">
+        <strong>North Sydney residents</strong> who shop across multiple local supermarkets <strong>need a reliable, automated way to monitor grocery prices</strong> across Woolworths, Coles, Harris Farm, and IGA simultaneously, <strong>because</strong> prices fluctuate frequently, stores don't make cross-store comparison easy, and manually checking prices is too time-consuming for busy households.
+      </p>
+    </div>
+
+    <!-- HMW questions -->
+    <h3 style="font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:28px 0 14px;">How Might We… Questions</h3>
+    <div class="hmw">help users know instantly when a tracked product drops below their target price, without them needing to check any website?</div>
+    <div class="hmw">make cross-store price comparison feel as effortless as checking the weather?</div>
+    <div class="hmw">ensure users only receive notifications when they're actually meaningful — not just noise?</div>
+    <div class="hmw">support both tech-savvy and low-tech users with the same system, without compromise?</div>
+    <div class="hmw">help users discover that a product they regularly buy is cheaper at a different nearby store?</div>
+
+    <!-- User Journey -->
+    <div class="card" style="margin-top:28px;">
+      <h3 style="margin-bottom:20px;">Current State User Journey (Pain Points)</h3>
+      <div class="journey">
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#fee2e2;">🛒</div>
+          <h4>Plan shop</h4>
+          <p>Makes a list manually, no price info</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#fef3c7;">📱</div>
+          <h4>Check apps</h4>
+          <p>Opens Woolworths, Coles apps separately</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#fee2e2;">😫</div>
+          <h4>Compare</h4>
+          <p>Manually compares — tedious, error-prone</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#fef3c7;">🏪</div>
+          <h4>Shop</h4>
+          <p>Goes to one store, may miss deals elsewhere</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#fee2e2;">😤</div>
+          <h4>Regret</h4>
+          <p>Discovers cheaper price elsewhere after purchase</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Future journey -->
+    <div class="card" style="margin-top:12px;">
+      <h3 style="margin-bottom:20px;">Future State Journey (With Price Tracker)</h3>
+      <div class="journey">
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#d1fae5;">📋</div>
+          <h4>Setup watchlist</h4>
+          <p>Add tracked items once</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#d1fae5;">⚙️</div>
+          <h4>Auto-scrape</h4>
+          <p>App checks all stores on schedule</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#d1fae5;">🔔</div>
+          <h4>Get alerted</h4>
+          <p>Email or push when conditions met</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#d1fae5;">🏃</div>
+          <h4>Shop smart</h4>
+          <p>Goes to the right store with confidence</p>
+        </div>
+        <div class="journey-step">
+          <div class="journey-icon" style="background:#d1fae5;">💰</div>
+          <h4>Save money</h4>
+          <p>Consistently buys at the best price</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════ 3. IDEATE ════════════════════ -->
+  <section class="section" id="ideate">
+    <div class="section-header">
+      <div class="phase-number" style="background:#fffbeb; color:var(--ideate)">💡</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--ideate)">Phase 3 — Ideate</div>
+        <h2>Generating Solutions</h2>
+        <p>Divergent thinking — exploring the full solution space before converging on the best ideas.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:14px;">Core Feature Ideas</h3>
+    <div class="grid-3" style="margin-bottom:28px;">
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Multi-store Live Search</h4>
+        <p>Real-time search across all 5 stores simultaneously with brand and price filters.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Price Drop Alerts</h4>
+        <p>Trigger notifications when price falls by a configurable percentage threshold.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Target Price Alerts</h4>
+        <p>Alert when a product crosses below a fixed dollar threshold set by the user.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Email Digest</h4>
+        <p>SMTP-based email with auto-configuration for Gmail, Yahoo, Outlook, iCloud.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Push Notifications</h4>
+        <p>ntfy.sh push alerts to phone — no app install required, works cross-platform.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#d1fae5; color:#065f46;">✅ Implemented</span>
+        <h4>Watchlist Management</h4>
+        <p>Per-item alert settings, target prices, and notification preferences.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#fef3c7; color:#92400e;">🔜 Planned</span>
+        <h4>Price History Charts</h4>
+        <p>Visual price trend over time per product — helps users spot seasonal patterns.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#fef3c7; color:#92400e;">🔜 Planned</span>
+        <h4>Weekly Digest Mode</h4>
+        <p>Scheduled weekly email summary of all tracked items regardless of price change.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#fef3c7; color:#92400e;">🔜 Planned</span>
+        <h4>Price History Pruning</h4>
+        <p>Auto-delete records older than 2 months to keep database lean.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#e0e7ff; color:#3730a3;">💭 Future</span>
+        <h4>Smart Shop Route</h4>
+        <p>Given a shopping list, suggest the optimal split across nearby stores to minimise total cost.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#e0e7ff; color:#3730a3;">💭 Future</span>
+        <h4>Specials Feed</h4>
+        <p>A browsable "what's on special this week" view across all stores, no watchlist needed.</p>
+      </div>
+
+      <div class="idea">
+        <span class="idea-tag" style="background:#e0e7ff; color:#3730a3;">💭 Future</span>
+        <h4>Community Prices</h4>
+        <p>Users can manually submit prices for stores that can't be scraped (markets, butchers, etc.).</p>
+      </div>
+
+    </div>
+
+    <!-- Design Principles -->
+    <h3 style="font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:14px;">Design Principles (Decided)</h3>
+    <div class="grid-3">
+      <div class="principle" style="border-top-color:var(--brand);">
+        <div class="principle-num" style="color:var(--brand);">01 — No noise</div>
+        <h3>Alerts only when meaningful</h3>
+        <p>The system never sends emails or push notifications unless a genuine condition is met. No daily email spam.</p>
+      </div>
+      <div class="principle" style="border-top-color:var(--empathise);">
+        <div class="principle-num" style="color:var(--empathise);">02 — Zero install</div>
+        <h3>Works in any browser</h3>
+        <p>No native app, no Electron, no extension. A local web server accessible via browser is the only requirement.</p>
+      </div>
+      <div class="principle" style="border-top-color:var(--prototype);">
+        <div class="principle-num" style="color:var(--prototype);">03 — Local-first</div>
+        <h3>Data stays on your machine</h3>
+        <p>SQLite database, no cloud account required. User data never leaves the household.</p>
+      </div>
+      <div class="principle" style="border-top-color:var(--ideate);">
+        <div class="principle-num" style="color:var(--ideate);">04 — Hyperlocal</div>
+        <h3>North Sydney area only</h3>
+        <p>Five specific stores. Not a national aggregator — trust comes from local, verifiable accuracy.</p>
+      </div>
+      <div class="principle" style="border-top-color:var(--define);">
+        <div class="principle-num" style="color:var(--define);">05 — Progressive disclosure</div>
+        <h3>Simple default, power when needed</h3>
+        <p>The search page is a single input. Advanced filters, brand filtering, and price ranges reveal on demand.</p>
+      </div>
+      <div class="principle" style="border-top-color:var(--test);">
+        <div class="principle-num" style="color:var(--test);">06 — Graceful failure</div>
+        <h3>One store down ≠ broken app</h3>
+        <p>If a scraper fails, results from other stores still appear. No full-page errors.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════ 4. PROTOTYPE ════════════════════ -->
+  <section class="section" id="prototype">
+    <div class="section-header">
+      <div class="phase-number" style="background:#f0fdf4; color:var(--prototype)">🔧</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--prototype)">Phase 4 — Prototype</div>
+        <h2>Building to Learn</h2>
+        <p>Technical decisions made in service of fast, reliable, low-maintenance delivery.</p>
+      </div>
+    </div>
+
+    <!-- Architecture -->
+    <div class="card" style="border-left:4px solid var(--prototype);">
+      <h3>Architecture Decisions &amp; Rationale</h3>
+      <div style="margin-top:16px; overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Decision</th>
+              <th>Choice</th>
+              <th>Rejected Alternative</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Backend framework</strong></td>
+              <td><span class="badge badge-green">FastAPI</span></td>
+              <td>Django, Flask</td>
+              <td>Async-native, automatic OpenAPI docs, minimal boilerplate</td>
+            </tr>
+            <tr>
+              <td><strong>Database</strong></td>
+              <td><span class="badge badge-green">SQLite + SQLAlchemy 2</span></td>
+              <td>PostgreSQL, MongoDB</td>
+              <td>Zero infrastructure, single file, trivially backupable</td>
+            </tr>
+            <tr>
+              <td><strong>Frontend reactivity</strong></td>
+              <td><span class="badge badge-green">HTMX + Alpine.js</span></td>
+              <td>React, Vue, Svelte</td>
+              <td>No build step, no bundle, works with Jinja2 templates natively</td>
+            </tr>
+            <tr>
+              <td><strong>Styling</strong></td>
+              <td><span class="badge badge-green">Tailwind CSS CDN</span></td>
+              <td>Bootstrap, custom CSS</td>
+              <td>Utility-first, responsive, no compilation needed in dev</td>
+            </tr>
+            <tr>
+              <td><strong>HTTP client</strong></td>
+              <td><span class="badge badge-green">httpx (async)</span></td>
+              <td>requests, aiohttp</td>
+              <td>Async-native, drop-in requests API, connection pooling</td>
+            </tr>
+            <tr>
+              <td><strong>Push notifications</strong></td>
+              <td><span class="badge badge-green">ntfy.sh</span></td>
+              <td>Firebase FCM, Pushover</td>
+              <td>Free, open-source, no account needed, self-hostable</td>
+            </tr>
+            <tr>
+              <td><strong>Email</strong></td>
+              <td><span class="badge badge-green">SMTP (stdlib)</span></td>
+              <td>SendGrid API, Mailgun</td>
+              <td>No external account, works with user's existing email provider</td>
+            </tr>
+            <tr>
+              <td><strong>Woolworths scraper</strong></td>
+              <td><span class="badge badge-green">v2 Product API</span></td>
+              <td>Web scraping (HTML)</td>
+              <td>Stable JSON API, returns structured price/stock data</td>
+            </tr>
+            <tr>
+              <td><strong>Harris Farm scraper</strong></td>
+              <td><span class="badge badge-green">Shopify Predict API</span></td>
+              <td>HTML scraping</td>
+              <td>Shopify's predictive search endpoint — no auth, structured JSON</td>
+            </tr>
+            <tr>
+              <td><strong>IGA scraper</strong></td>
+              <td><span class="badge badge-green">Metcash Storefront API</span></td>
+              <td>Web scraping</td>
+              <td>REST API with store-specific endpoints for each local IGA</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Store coverage -->
+    <div class="card" style="margin-top:16px;">
+      <h3>Store Coverage</h3>
+      <div class="grid-2" style="margin-top:14px; gap:10px;">
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
+          <div><div style="font-size:.875rem;font-weight:700;">Woolworths — Miller Street, North Sydney</div><div style="font-size:.78rem;color:var(--muted);">Woolworths v2 Product API · Full price + stock data</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
+          <div><div style="font-size:.875rem;font-weight:700;">Coles — North Sydney</div><div style="font-size:.78rem;color:var(--muted);">Coles API · Price + specials detection</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
+          <div><div style="font-size:.875rem;font-weight:700;">Harris Farm Markets — Crows Nest</div><div style="font-size:.78rem;color:var(--muted);">Shopify Predictive Search · Compare-at-price for specials</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
+          <div><div style="font-size:.875rem;font-weight:700;">IGA — North Sydney (Greenwood Plaza)</div><div style="font-size:.78rem;color:var(--muted);">Metcash Storefront API · Store ID 21283</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
+          <div><div style="font-size:.875rem;font-weight:700;">IGA — Milsons Point</div><div style="font-size:.78rem;color:var(--muted);">Metcash Storefront API · Store ID 239417</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:18px;">🟡</div>
+          <div><div style="font-size:.875rem;font-weight:700;">IGA — Crows Nest → Greenwich</div><div style="font-size:.78rem;color:var(--muted);">Nearest available IGA · Store ID 19133 · ~1.2km from Crows Nest</div></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════ 5. TEST ════════════════════ -->
+  <section class="section" id="test">
+    <div class="section-header">
+      <div class="phase-number" style="background:#fff1f2; color:var(--test)">🧪</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--test)">Phase 5 — Test</div>
+        <h2>Learning from Reality</h2>
+        <p>Bugs found, fixes applied, and UX lessons learned during the build and test phase.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Issues Found &amp; Resolved</h3>
+      <div style="margin-top:8px;">
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Search returning 0 results (Alpine hidden input race condition)</h4>
+            <p>HTMX fired before Alpine.js had initialised the hidden store input, sending <code>store=""</code> which matched nothing. Fixed using <code>x-effect</code> for reactive sync and ID-based <code>hx-include</code>, plus server-side fallback to "all".</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Store enum AttributeError in Jinja2 templates</h4>
+            <p>Template helpers called <code>.title()</code> on SQLAlchemy enum objects which don't have that method. Fixed with a <code>_store_key()</code> helper that extracts the string value safely.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Test email showing success but displaying error</h4>
+            <p>Email was delivered but Windows' <code>charmap</code> codec couldn't encode the 🛒 emoji in the subject line, causing the function to return <code>False</code>. Fixed by setting <code>PYTHONIOENCODING=utf-8</code> and using plain-text subjects.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Brand filter not working — quoting conflict in Alpine</h4>
+            <p><code>{{ b | tojson }}</code> produced double-quoted strings inside double-quoted HTML attributes, breaking the JavaScript. Fixed using <code>data-brand="{{ b }}"</code> attributes and reading <code>$el.dataset.brand</code> in the click handler.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Brand filter only searching visible page, not all results</h4>
+            <p>Client-side <code>x-show</code> filtering only operated on the 25 results on the current page. Redesigned as a server-side filter — brand selection triggers a new HTMX request with the brand parameter included.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#d1fae5;">✅</div>
+          <div class="finding-text">
+            <h4>Brand filter clicks not registering</h4>
+            <p>The <code>#search-results</code> div was outside the Alpine component that managed brand state. HTMX-swapped content had no Alpine scope, so <code>@click</code> directives were never processed. Fixed by moving results div inside the Alpine component boundary.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#fef3c7;">⚠️</div>
+          <div class="finding-text">
+            <h4>IGA Crows Nest doesn't exist on igashop.com.au</h4>
+            <p>The Crows Nest IGA is not listed in the Metcash platform. Mapped to IGA Greenwich (store_id=19133) as the nearest alternative (~1.2km). Labelled clearly in the UI as "IGA Greenwich (near Crows Nest)".</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="finding-icon" style="background:#fef3c7;">⚠️</div>
+          <div class="finding-text">
+            <h4>Harris Farm Shopify API limited to 10 results per call</h4>
+            <p>Shopify's predictive search endpoint hard-limits results to 10 items regardless of the <code>limit</code> parameter. Acceptable for watchlist-style use cases — documented in the scraper code.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- UX feedback -->
+    <div class="card" style="margin-top:16px;">
+      <h3>UX Observations</h3>
+      <div class="grid-2" style="margin-top:12px; gap:12px;">
+        <div style="padding:14px; border-radius:10px; border:1px solid #d1fae5; background:#f0fdf4;">
+          <div style="font-size:.7rem; font-weight:800; color:#065f46; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px;">👍 Working well</div>
+          <ul style="font-size:.83rem; color:#374151; padding-left:16px;">
+            <li>HTMX live search feels instant and natural</li>
+            <li>Store filter pills provide clear visual feedback</li>
+            <li>Card layout scannable with price prominent</li>
+            <li>Email test flow is reliable once App Password configured</li>
+          </ul>
+        </div>
+        <div style="padding:14px; border-radius:10px; border:1px solid #fde68a; background:#fffbeb;">
+          <div style="font-size:.7rem; font-weight:800; color:#92400e; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px;">🔧 Needs improvement</div>
+          <ul style="font-size:.83rem; color:#374151; padding-left:16px;">
+            <li>Brand filter state resets on store/page change</li>
+            <li>No visual price history — trend context missing</li>
+            <li>No "add to watchlist" shortcut from search results</li>
+            <li>Quiet hours UI could be clearer about timezone</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════ 6. ROADMAP ════════════════════ -->
+  <section class="section" id="roadmap">
+    <div class="section-header">
+      <div class="phase-number" style="background:#eff6ff; color:var(--brand)">🗺️</div>
+      <div class="section-header-text">
+        <div class="phase-label" style="color:var(--brand)">Next Steps</div>
+        <h2>Iteration Roadmap</h2>
+        <p>Prioritised backlog of improvements guided by design thinking findings.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="roadmap-row">
+        <span class="roadmap-phase" style="background:#10b981;">Now</span>
+        <div class="roadmap-items">Fix emoji encoding in email subjects · Persist brand filter across page changes · Add "Add to Watchlist" button in search results · Wire fetch_prices into scheduler</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="roadmap-phase" style="background:#f59e0b;">Next</span>
+        <div class="roadmap-items">Weekly digest mode (send all prices regardless of change) · Price history sparkline charts · Price history pruning (2-month retention) · In-app notification log / alert history</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="roadmap-phase" style="background:#8b5cf6;">Later</span>
+        <div class="roadmap-items">Smart shop optimiser (minimum-cost store split for a shopping list) · "What's on special this week" browse view · Community price submissions for unscraped stores · Multi-household / multi-user support</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="roadmap-phase" style="background:#6b7280;">Someday</span>
+        <div class="roadmap-items">Mobile-optimised PWA shell · Recipe integration (price a full recipe across stores) · Export price history to CSV/Excel · API endpoint for third-party integrations</div>
+      </div>
+    </div>
+
+    <!-- Success metrics -->
+    <div class="card" style="margin-top:16px; border-left:4px solid var(--brand);">
+      <h3>How We'll Know It's Working</h3>
+      <div class="grid-3" style="margin-top:14px; gap:10px;">
+        <div style="padding:14px; border-radius:10px; background:var(--brand-light); text-align:center;">
+          <div style="font-size:1.75rem; font-weight:800; color:var(--brand);">5</div>
+          <div style="font-size:.78rem; color:var(--muted); font-weight:600;">Stores tracked</div>
+        </div>
+        <div style="padding:14px; border-radius:10px; background:#f0fdf4; text-align:center;">
+          <div style="font-size:1.75rem; font-weight:800; color:#10b981;">0</div>
+          <div style="font-size:.78rem; color:var(--muted); font-weight:600;">False alert emails sent</div>
+        </div>
+        <div style="padding:14px; border-radius:10px; background:#fffbeb; text-align:center;">
+          <div style="font-size:1.75rem; font-weight:800; color:#f59e0b;">&lt; 2s</div>
+          <div style="font-size:.78rem; color:var(--muted); font-weight:600;">Search response time</div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+<footer>
+  Supermarket Price Tracker · Design Thinking Document v0.2 · North Sydney, NSW · March 2026
+  <br>Built with FastAPI · HTMX · Alpine.js · SQLite · Tailwind CSS
+</footer>
+
+</body>
+</html>

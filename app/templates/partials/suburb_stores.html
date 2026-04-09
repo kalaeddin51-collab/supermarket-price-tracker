@@ -1,0 +1,138 @@
+{% if not matches %}
+  <div class="flex flex-col items-center justify-center py-16 text-center">
+    <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+      <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+    </div>
+    <p class="text-sm font-semibold text-gray-700 mb-1">No results for "{{ query }}"</p>
+    <p class="text-xs text-gray-400">Try a neighbouring suburb or postcode.</p>
+  </div>
+
+{% else %}
+  <div class="mb-4 flex items-center gap-2 flex-wrap">
+    <p class="text-xs text-gray-500">
+      Stores available near
+      <strong class="text-gray-700">{{ matches | list | join(', ') }}</strong>
+    </p>
+    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-brand bg-brand-light
+                 border border-green-200 px-2 py-0.5 rounded-full">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      within 5 km
+    </span>
+  </div>
+
+  {% for suburb_name, slugs in matches.items() %}
+  {# Build display_stores: collapse all iga_* into one IGA entry #}
+  {% set display_stores = [] %}
+  {% set iga_slugs = [] %}
+  {% for slug in slugs %}
+    {% if 'iga' in slug %}
+      {% if iga_slugs.append(slug) %}{% endif %}
+    {% else %}
+      {% if display_stores.append({'slug': slug, 'label': store_labels[slug], 'color': store_colors[slug]}) %}{% endif %}
+    {% endif %}
+  {% endfor %}
+  {% if iga_slugs %}
+    {% if display_stores.append({'slug': 'iga', 'label': 'IGA', 'color': '#D2232A', 'iga_slugs': iga_slugs}) %}{% endif %}
+  {% endif %}
+
+  {# Per-suburb slug list for select/clear buttons #}
+  {% set this_slugs = per_suburb_slugs[suburb_name] if per_suburb_slugs is defined else slugs %}
+
+  <div class="mb-6">
+    <div class="flex items-center gap-2 mb-3">
+      <svg class="w-4 h-4 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      <h3 class="text-sm font-bold text-gray-800">{{ suburb_name }}</h3>
+      <span class="text-[10px] text-gray-400 font-medium">
+        {{ display_stores | length }} store{{ 's' if display_stores | length != 1 }} within 5 km
+      </span>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {% for store in display_stores %}
+
+      {% if store.iga_slugs is defined %}
+      {# IGA card — data-iga-slugs holds JSON, JS handles clicks #}
+      {% set any_iga_selected = false %}
+      {% for s in store.iga_slugs %}{% if s in selected_stores %}{% set any_iga_selected = true %}{% endif %}{% endfor %}
+      <div data-iga-slugs='{{ store.iga_slugs | tojson }}'
+           class="bg-white border-2 rounded-xl p-4 cursor-pointer transition-all card-lift select-none hover:border-gray-300 {{ 'shadow-md' if any_iga_selected else 'border-gray-100' }}"
+           style="{{ 'border-color:#D2232A' if any_iga_selected else '' }}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-3 h-3 rounded-full shrink-0 mt-0.5" style="background:#D2232A"></span>
+            <span class="text-sm font-semibold text-gray-800">IGA near {{ suburb_name }}</span>
+          </div>
+          <span class="store-checkbox w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                style="{{ 'background:#D2232A; border-color:#D2232A' if any_iga_selected else 'background:#fff; border-color:#d1d5db' }}">
+            <svg class="store-checkmark w-3 h-3 text-white" style="{{ '' if any_iga_selected else 'display:none' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+            </svg>
+          </span>
+        </div>
+        <div class="mt-1.5 ml-5 flex flex-col gap-0.5">
+          {% for iga_slug in store.iga_slugs %}
+          <span class="text-[10px] text-gray-500">{{ store_labels[iga_slug] }}</span>
+          {% endfor %}
+        </div>
+        <p class="text-[11px] text-gray-400 mt-1 ml-5">
+          <span class="store-label">{{ 'Click to deselect' if any_iga_selected else 'Click to select' }}</span>
+        </p>
+      </div>
+
+      {% else %}
+      {# Regular store card #}
+      {% set is_sel = store.slug in selected_stores %}
+      <div data-store-slug="{{ store.slug }}"
+           data-store-color="{{ store.color }}"
+           class="bg-white border-2 rounded-xl p-4 cursor-pointer transition-all card-lift select-none hover:border-gray-300 {{ 'shadow-md' if is_sel else 'border-gray-100' }}"
+           style="{{ 'border-color:' + store.color if is_sel else '' }}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-3 h-3 rounded-full shrink-0 mt-0.5" style="background:{{ store.color }}"></span>
+            <span class="text-sm font-semibold text-gray-800 truncate">
+              {% if store.slug == 'harris_farm' %}Harris Farm{% else %}{{ store.label }}{% endif %}
+            </span>
+          </div>
+          <span class="store-checkbox w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                style="{{ 'background:' + store.color + '; border-color:' + store.color if is_sel else 'background:#fff; border-color:#d1d5db' }}">
+            <svg class="store-checkmark w-3 h-3 text-white" style="{{ '' if is_sel else 'display:none' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+            </svg>
+          </span>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-2 ml-5">
+          <span class="store-label">{{ 'Click to deselect' if is_sel else 'Click to select' }}</span>
+        </p>
+      </div>
+      {% endif %}
+
+      {% endfor %}
+    </div>
+
+    <div class="flex gap-3 mt-2">
+      <button type="button"
+        data-select-slugs='{{ this_slugs | tojson }}'
+        class="text-xs text-brand hover:text-brand-dark font-semibold transition-colors">
+        Select all near {{ suburb_name }}
+      </button>
+      <span class="text-gray-300">|</span>
+      <button type="button"
+        data-clear-slugs='{{ this_slugs | tojson }}'
+        class="text-xs text-gray-400 hover:text-gray-600 font-medium transition-colors">
+        Clear
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
