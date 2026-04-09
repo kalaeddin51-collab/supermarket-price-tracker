@@ -985,16 +985,20 @@ async def search_results(
     p_max = float(price_max) if price_max else None
 
     import asyncio
+    import logging
     all_results = []
+    failed_stores: list[str] = []
 
     async def run_scraper(scraper_cls, store_slug):
         try:
             scraper = scraper_cls()
             hits = await scraper.search(q, limit=25)
             await scraper.close()
-            return hits
-        except Exception:
-            return []
+            return (store_slug, hits)
+        except Exception as exc:
+            logging.error("Scraper %s failed: %s", store_slug, exc)
+            failed_stores.append(store_slug)
+            return (store_slug, [])
 
     # Resolve active store slugs — supports "all", single slug, or comma-separated list
     if "," in store:
@@ -1024,7 +1028,7 @@ async def search_results(
             tasks.append(run_scraper(_scraper_map[slug], slug))
 
     task_results = await asyncio.gather(*tasks)
-    for hits in task_results:
+    for _slug, hits in task_results:
         all_results.extend(hits)
 
     # Apply price range filter
@@ -1079,6 +1083,9 @@ async def search_results(
     end       = start + page_size
     page_results = all_results[start:end]
 
+    # Build human-readable labels for failed stores
+    failed_labels = [STORE_LABELS.get(s, s) for s in failed_stores]
+
     return templates.TemplateResponse(request, "partials/search_results.html", {
         "results":         page_results,
         "all_brands":      all_brands,
@@ -1094,6 +1101,7 @@ async def search_results(
         "price_max": price_max or "",
         "sort":      sort or "",
         "brand":          brand or "",
+        "failed_stores":  failed_labels,
     })
 
 

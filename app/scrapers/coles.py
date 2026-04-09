@@ -73,10 +73,12 @@ class ColesScraper(BaseScraper):
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
                 timeout=settings.request_timeout_seconds,
                 follow_redirects=True,
+                proxy=proxy,
             )
         return self._client
 

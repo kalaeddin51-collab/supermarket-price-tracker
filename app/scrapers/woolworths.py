@@ -61,10 +61,12 @@ class WoolworthsScraper(BaseScraper):
         The client persists cookies across requests (needed for session auth).
         """
         if self._client is None or self._client.is_closed:
+            proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
                 timeout=settings.request_timeout_seconds,
                 follow_redirects=True,
+                proxy=proxy,
             )
             # Hit the homepage once to establish a session cookie
             await self._client.get("https://www.woolworths.com.au/")
