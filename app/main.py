@@ -471,6 +471,7 @@ async def register_post(
     db.add(user)
     db.commit()
     request.session["auth_success"] = "Account created! Sign in to continue."
+    request.session["prefill_email"] = email
     return RedirectResponse("/login", status_code=303)
 
 
