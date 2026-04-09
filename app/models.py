@@ -91,6 +91,7 @@ class WatchlistEntry(Base):
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_push: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
 
     product: Mapped["Product"] = relationship(back_populates="watchlist_entries")
     alert_events: Mapped[list["AlertEvent"]] = relationship(back_populates="watchlist_entry", cascade="all, delete-orphan")
@@ -170,6 +171,7 @@ class ShoppingList(Base):
     name: Mapped[str] = mapped_column(String(200), default="My Shopping List")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     items: Mapped[list["ShoppingListItem"]] = relationship("ShoppingListItem", back_populates="list", cascade="all, delete-orphan")
 
 class ShoppingListItem(Base):

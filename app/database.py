@@ -49,6 +49,8 @@ def _migrate_columns():
         ("notification_settings", "poll_day",         "INTEGER",      "0"),
         ("notification_settings", "smtp_user",        "VARCHAR(254)", "NULL"),
         ("notification_settings", "smtp_password",    "VARCHAR(500)", "NULL"),
+        ("watchlist",             "user_id",           "INTEGER",      "NULL"),
+        ("shopping_lists",        "user_id",           "INTEGER",      "NULL"),
     ]
     with engine.connect() as conn:
         for table, col, col_type, default in new_columns:

@@ -19,7 +19,7 @@ from app.suburbs import SUBURB_STORES, ALL_SUBURBS, POSTCODE_NAMES
 from app.geo import nearby_suburbs
 
 app = FastAPI(title="Supermarket Price Tracker")
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key, max_age=60*60*24*30)
 
 # Simple in-memory rate limiter: track failed login attempts per IP
 _login_attempts: dict[str, list] = {}
@@ -604,7 +604,10 @@ async def landing_page(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
-    entries = db.query(models.WatchlistEntry).join(models.Product).all()
+    user_id = request.session.get("user_id")
+    entries = db.query(models.WatchlistEntry).join(models.Product).filter(
+        models.WatchlistEntry.user_id == user_id
+    ).all()
 
     # Attach latest price + price trend to each entry
     enriched = []
@@ -724,7 +727,10 @@ async def search_page(request: Request, db: Session = Depends(get_db), q: str = 
 
 @app.get("/watchlist", response_class=HTMLResponse)
 async def watchlist_page(request: Request, db: Session = Depends(get_db)):
-    entries = db.query(models.WatchlistEntry).join(models.Product).all()
+    user_id = request.session.get("user_id")
+    entries = db.query(models.WatchlistEntry).join(models.Product).filter(
+        models.WatchlistEntry.user_id == user_id
+    ).all()
     enriched = []
     for entry in entries:
         history = (
@@ -867,8 +873,10 @@ async def product_detail(
         .order_by(models.PriceRecord.scraped_at.asc())
         .all()
     )
+    user_id = request.session.get("user_id")
     on_watchlist = db.query(models.WatchlistEntry).filter(
-        models.WatchlistEntry.product_id == product_id
+        models.WatchlistEntry.product_id == product_id,
+        models.WatchlistEntry.user_id == user_id,
     ).first()
     return templates.TemplateResponse(request, "product_detail.html", {
         "product": product,
@@ -1101,6 +1109,7 @@ async def watchlist_add(
     unit: Optional[str] = Form(None),
     image_url: Optional[str] = Form(None),
 ):
+    user_id = request.session.get("user_id")
     # Upsert product
     product = db.query(models.Product).filter(
         models.Product.external_id == external_id,
@@ -1126,12 +1135,13 @@ async def watchlist_add(
         except ValueError:
             pass
 
-    # Upsert watchlist entry for primary product
+    # Upsert watchlist entry for primary product (scoped to this user)
     entry = db.query(models.WatchlistEntry).filter(
-        models.WatchlistEntry.product_id == product.id
+        models.WatchlistEntry.product_id == product.id,
+        models.WatchlistEntry.user_id == user_id,
     ).first()
     if not entry:
-        entry = models.WatchlistEntry(product_id=product.id)
+        entry = models.WatchlistEntry(product_id=product.id, user_id=user_id)
         db.add(entry)
     db.commit()
 
@@ -1170,12 +1180,13 @@ async def watchlist_add(
         # Store initial price
         if result.price:
             db.add(models.PriceRecord(product_id=p.id, price=result.price))
-        # Upsert watchlist entry
+        # Upsert watchlist entry (scoped to this user)
         we = db.query(models.WatchlistEntry).filter(
-            models.WatchlistEntry.product_id == p.id
+            models.WatchlistEntry.product_id == p.id,
+            models.WatchlistEntry.user_id == user_id,
         ).first()
         if not we:
-            we = models.WatchlistEntry(product_id=p.id)
+            we = models.WatchlistEntry(product_id=p.id, user_id=user_id)
             db.add(we)
         stores_added.append(result.store)
     db.commit()
@@ -1196,7 +1207,11 @@ async def watchlist_add(
 
 @app.get("/partials/watchlist/{entry_id}/edit", response_class=HTMLResponse)
 async def watchlist_edit_form(request: Request, entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(models.WatchlistEntry).filter(models.WatchlistEntry.id == entry_id).first()
+    user_id = request.session.get("user_id")
+    entry = db.query(models.WatchlistEntry).filter(
+        models.WatchlistEntry.id == entry_id,
+        models.WatchlistEntry.user_id == user_id,
+    ).first()
     if not entry:
         raise HTTPException(404)
     return templates.TemplateResponse(request, "partials/watchlist_edit_form.html", {
@@ -1215,7 +1230,11 @@ async def watchlist_update(
     notify_email: Optional[str] = Form(None),
     notify_push: Optional[str] = Form(None),
 ):
-    entry = db.query(models.WatchlistEntry).filter(models.WatchlistEntry.id == entry_id).first()
+    user_id = request.session.get("user_id")
+    entry = db.query(models.WatchlistEntry).filter(
+        models.WatchlistEntry.id == entry_id,
+        models.WatchlistEntry.user_id == user_id,
+    ).first()
     if not entry:
         raise HTTPException(404)
     entry.alert_drop_pct = float(alert_drop_pct) if alert_drop_pct else None
@@ -1252,8 +1271,12 @@ async def watchlist_update(
 
 
 @app.delete("/partials/watchlist/{entry_id}", response_class=HTMLResponse)
-async def watchlist_delete(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(models.WatchlistEntry).filter(models.WatchlistEntry.id == entry_id).first()
+async def watchlist_delete(request: Request, entry_id: int, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    entry = db.query(models.WatchlistEntry).filter(
+        models.WatchlistEntry.id == entry_id,
+        models.WatchlistEntry.user_id == user_id,
+    ).first()
     if entry:
         db.delete(entry)
         db.commit()
@@ -1348,8 +1371,11 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     os.environ["SMTP_USER"]     = smtp_user
     os.environ["SMTP_PASSWORD"] = smtp_pass
 
-    # Build watchlist snapshot
-    entries = db.query(models.WatchlistEntry).join(models.Product).all()
+    # Build watchlist snapshot (scoped to requesting user)
+    _uid = request.session.get("user_id")
+    entries = db.query(models.WatchlistEntry).join(models.Product).filter(
+        models.WatchlistEntry.user_id == _uid
+    ).all()
     watchlist_rows = ""
     for entry in entries:
         product = entry.product
@@ -1482,7 +1508,10 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/partials/settings/email-preview", response_class=HTMLResponse)
 async def email_preview(request: Request, db: Session = Depends(get_db)):
-    entries = db.query(models.WatchlistEntry).join(models.Product).limit(5).all()
+    _uid = request.session.get("user_id")
+    entries = db.query(models.WatchlistEntry).join(models.Product).filter(
+        models.WatchlistEntry.user_id == _uid
+    ).limit(5).all()
     preview_items = []
     for entry in entries:
         latest = (
@@ -1546,9 +1575,12 @@ async def scraper_status(db: Session = Depends(get_db)):
 
 @app.get("/shopping-list", response_class=HTMLResponse)
 async def shopping_list_page(request: Request, db: Session = Depends(get_db)):
-    lists = db.query(models.ShoppingList).order_by(models.ShoppingList.updated_at.desc()).all()
+    user_id = request.session.get("user_id")
+    lists = db.query(models.ShoppingList).filter(
+        models.ShoppingList.user_id == user_id
+    ).order_by(models.ShoppingList.updated_at.desc()).all()
     if not lists:
-        default = models.ShoppingList(name="My Shopping List")
+        default = models.ShoppingList(name="My Shopping List", user_id=user_id)
         db.add(default)
         db.commit()
         db.refresh(default)
@@ -1558,10 +1590,16 @@ async def shopping_list_page(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/shopping-list/{list_id}", response_class=HTMLResponse)
 async def shopping_list_detail(request: Request, list_id: int, db: Session = Depends(get_db)):
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         raise HTTPException(404)
-    all_lists = db.query(models.ShoppingList).order_by(models.ShoppingList.updated_at.desc()).all()
+    all_lists = db.query(models.ShoppingList).filter(
+        models.ShoppingList.user_id == user_id
+    ).order_by(models.ShoppingList.updated_at.desc()).all()
 
     # Parse matched_results JSON for each item
     from app.unit_parser import parse_unit as _parse_unit
@@ -1597,7 +1635,11 @@ async def shopping_list_detail(request: Request, list_id: int, db: Session = Dep
 
 @app.get("/partials/shopping-list/{list_id}/totals", response_class=HTMLResponse)
 async def shopping_list_totals(request: Request, list_id: int, db: Session = Depends(get_db)):
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         return HTMLResponse("")
     store_totals = _calc_store_totals(sl)
@@ -1617,14 +1659,18 @@ async def import_shopping_list_text(
     list_id: Optional[int] = Form(None),
 ):
     import re
+    user_id = request.session.get("user_id")
     # Get or create list
     if list_id:
-        sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+        sl = db.query(models.ShoppingList).filter(
+            models.ShoppingList.id == list_id,
+            models.ShoppingList.user_id == user_id,
+        ).first()
         if not sl:
-            sl = models.ShoppingList(name=list_name)
+            sl = models.ShoppingList(name=list_name, user_id=user_id)
             db.add(sl)
     else:
-        sl = models.ShoppingList(name=list_name)
+        sl = models.ShoppingList(name=list_name, user_id=user_id)
         db.add(sl)
     db.flush()
 
@@ -1666,16 +1712,20 @@ async def import_shopping_list_csv(
     list_id: Optional[int] = Form(None),
 ):
     import csv, io
+    user_id = request.session.get("user_id")
     content = await file.read()
     text = content.decode("utf-8-sig", errors="replace")  # handle BOM
 
     if list_id:
-        sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+        sl = db.query(models.ShoppingList).filter(
+            models.ShoppingList.id == list_id,
+            models.ShoppingList.user_id == user_id,
+        ).first()
         if not sl:
-            sl = models.ShoppingList(name=list_name)
+            sl = models.ShoppingList(name=list_name, user_id=user_id)
             db.add(sl)
     else:
-        sl = models.ShoppingList(name=list_name)
+        sl = models.ShoppingList(name=list_name, user_id=user_id)
         db.add(sl)
     db.flush()
 
@@ -1721,10 +1771,13 @@ async def shopping_list_add_from_search(
     image_url: Optional[str] = Form(None),
     url: Optional[str] = Form(None),
 ):
-    # Get or create the default (most-recently-updated) shopping list
-    sl = db.query(models.ShoppingList).order_by(models.ShoppingList.updated_at.desc()).first()
+    user_id = request.session.get("user_id")
+    # Get or create the default (most-recently-updated) shopping list for this user
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.user_id == user_id
+    ).order_by(models.ShoppingList.updated_at.desc()).first()
     if not sl:
-        sl = models.ShoppingList(name="My Shopping List")
+        sl = models.ShoppingList(name="My Shopping List", user_id=user_id)
         db.add(sl)
         db.flush()
 
@@ -1764,7 +1817,11 @@ async def add_shopping_list_item(
 ):
     if not name.strip():
         return HTMLResponse("")
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         raise HTTPException(404)
     item = models.ShoppingListItem(list_id=list_id, name=name.strip(), qty=qty, unit=unit or None)
@@ -1851,7 +1908,11 @@ async def search_all_shopping_items(
     list_id: int,
     db: Session = Depends(get_db),
 ):
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         raise HTTPException(404)
 
@@ -1924,8 +1985,12 @@ async def bulk_search_shopping_items(
     item_ids: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    user_id = request.session.get("user_id")
     ids = [int(i) for i in item_ids.split(",") if i.strip().isdigit()]
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         raise HTTPException(404)
 
@@ -1978,13 +2043,16 @@ async def bulk_search_shopping_items(
 
 @app.post("/partials/watchlist/bulk-delete", response_class=HTMLResponse)
 async def bulk_delete_watchlist(
+    request: Request,
     entry_ids: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    user_id = request.session.get("user_id")
     ids = [int(i) for i in entry_ids.split(",") if i.strip().isdigit()]
     if ids:
         db.query(models.WatchlistEntry).filter(
-            models.WatchlistEntry.id.in_(ids)
+            models.WatchlistEntry.id.in_(ids),
+            models.WatchlistEntry.user_id == user_id,
         ).delete(synchronize_session=False)
         db.commit()
     return HTMLResponse("")
@@ -2082,7 +2150,8 @@ async def create_shopping_list(
     db: Session = Depends(get_db),
 ):
     """Create a new shopping list and redirect to it."""
-    sl = models.ShoppingList(name=name.strip() or "New Shopping List")
+    user_id = request.session.get("user_id")
+    sl = models.ShoppingList(name=name.strip() or "New Shopping List", user_id=user_id)
     db.add(sl)
     db.commit()
     db.refresh(sl)
@@ -2090,14 +2159,20 @@ async def create_shopping_list(
 
 
 @app.delete("/shopping-list/{list_id}", response_class=HTMLResponse)
-async def delete_shopping_list(list_id: int, db: Session = Depends(get_db)):
+async def delete_shopping_list(request: Request, list_id: int, db: Session = Depends(get_db)):
     """Delete a shopping list (and all its items via cascade)."""
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if sl:
         db.delete(sl)
         db.commit()
     # Redirect to another list, or the base route (which creates a new one if none exist)
-    remaining = db.query(models.ShoppingList).order_by(
+    remaining = db.query(models.ShoppingList).filter(
+        models.ShoppingList.user_id == user_id
+    ).order_by(
         models.ShoppingList.updated_at.desc()
     ).first()
     if remaining:
@@ -2114,7 +2189,11 @@ async def rename_shopping_list(
     db: Session = Depends(get_db),
 ):
     """Rename the shopping list. Returns updated heading fragment for HTMX."""
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    user_id = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == user_id,
+    ).first()
     if not sl:
         raise HTTPException(404)
     new_name = name.strip() or sl.name
@@ -2173,7 +2252,11 @@ async def email_shopping_list(
             'Add one in <a href="/settings" class="underline">Settings</a>.</div>'
         )
 
-    sl = db.query(models.ShoppingList).filter(models.ShoppingList.id == list_id).first()
+    _uid = request.session.get("user_id")
+    sl = db.query(models.ShoppingList).filter(
+        models.ShoppingList.id == list_id,
+        models.ShoppingList.user_id == _uid,
+    ).first()
     if not sl:
         raise HTTPException(404)
 
@@ -2229,7 +2312,10 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
             '<a href="/settings" class="underline">Settings</a>.</div>'
         )
 
-    entries = db.query(models.WatchlistEntry).join(models.Product).all()
+    _uid = request.session.get("user_id")
+    entries = db.query(models.WatchlistEntry).join(models.Product).filter(
+        models.WatchlistEntry.user_id == _uid
+    ).all()
     entries_data = []
     for entry in entries:
         history = (
