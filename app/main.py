@@ -59,6 +59,17 @@ def _clear_attempts(ip: str):
     _login_attempts.pop(ip, None)
 templates = Jinja2Templates(directory="app/templates")
 
+@app.get("/health")
+async def health_check():
+    """Quick health/debug endpoint."""
+    return {
+        "status": "ok",
+        "scraperapi_configured": bool(settings.scraperapi_key),
+        "scraperapi_key_prefix": settings.scraperapi_key[:6] + "..." if settings.scraperapi_key else "",
+        "proxy_configured": bool(settings.scraper_proxy),
+    }
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
