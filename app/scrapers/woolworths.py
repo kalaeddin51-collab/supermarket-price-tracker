@@ -9,7 +9,7 @@ import json as _json
 import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
-from app.config import settings
+from app.config import settings, get_scraperapi_key
 
 BASE_URL = "https://www.woolworths.com.au/apis/ui"
 
@@ -54,11 +54,11 @@ def _parse_product(item: dict, store: str = "woolworths") -> SearchResult:
 
 def _scraperapi_url(target_url: str) -> str:
     """Wrap a target URL with ScraperAPI if a key is configured."""
-    return f"http://api.scraperapi.com?api_key={settings.scraperapi_key}&url={urllib.parse.quote(target_url, safe='')}"
+    return f"http://api.scraperapi.com?api_key={get_scraperapi_key()}&url={urllib.parse.quote(target_url, safe='')}"
 
 
 def _use_scraperapi() -> bool:
-    return bool(settings.scraperapi_key)
+    return bool(get_scraperapi_key())
 
 
 class WoolworthsScraper(BaseScraper):

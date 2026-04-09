@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 import bcrypt
 
-from app.config import settings
+from app.config import settings, get_scraperapi_key, set_scraperapi_key
 from app.database import get_db, init_db
 from app import models
 from app.suburbs import SUBURB_STORES, ALL_SUBURBS, POSTCODE_NAMES
@@ -62,17 +62,11 @@ templates = Jinja2Templates(directory="app/templates")
 @app.get("/health")
 async def health_check():
     """Quick health/debug endpoint."""
-    import os
-    # Show ALL non-system env var names so we can find the right one
-    all_keys = sorted([k for k in os.environ.keys()
-                       if not k.startswith(("_", "PYTHON", "PATH", "HOME", "LANG",
-                                            "LC_", "TERM", "SHELL", "USER", "LOGNAME",
-                                            "HOSTNAME", "PWD", "SHLVL", "OLDPWD"))])
     return {
         "status": "ok",
-        "scraperapi_configured": bool(settings.scraperapi_key),
+        "scraperapi_configured": bool(get_scraperapi_key()),
+        "scraperapi_key_prefix": get_scraperapi_key()[:6] + "..." if get_scraperapi_key() else "",
         "proxy_configured": bool(settings.scraper_proxy),
-        "all_env_var_names": all_keys,
     }
 
 
@@ -1368,7 +1362,7 @@ async def save_settings(
     # Save ScraperAPI key and update runtime settings
     if scraperapi_key:
         ns.scraperapi_key = scraperapi_key
-        settings.scraperapi_key = scraperapi_key  # apply immediately
+        set_scraperapi_key(scraperapi_key)  # apply immediately for this process
     ns.updated_at     = datetime.utcnow()
     db.commit()
 
@@ -2387,14 +2381,13 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
 async def startup():
     init_db()
     # Load ScraperAPI key from DB if not set via env var
-    if not settings.scraperapi_key:
-        from app.database import SessionLocal
-        db = SessionLocal()
-        try:
-            ns = db.query(models.NotificationSettings).first()
-            if ns and getattr(ns, "scraperapi_key", None):
-                settings.scraperapi_key = ns.scraperapi_key
-        except Exception:
-            pass  # column may not exist yet on first deploy
-        finally:
-            db.close()
+    from app.database import SessionLocal
+    _startup_db = SessionLocal()
+    try:
+        ns = _startup_db.query(models.NotificationSettings).first()
+        if ns and getattr(ns, "scraperapi_key", None):
+            set_scraperapi_key(ns.scraperapi_key)
+    except Exception:
+        pass  # column may not exist yet on first deploy
+    finally:
+        _startup_db.close()

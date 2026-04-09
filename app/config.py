@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", frozen=False)
+    model_config = SettingsConfigDict(env_file=".env")
 
     database_url: str = "sqlite:///./prices.db"
 
@@ -21,12 +21,27 @@ class Settings(BaseSettings):
     request_timeout_seconds: int = 30
 
     # Optional proxy for scrapers blocked by bot protection (Woolworths, Coles)
-    # e.g. "http://user:pass@proxy.example.com:8080"
     scraper_proxy: str = ""
 
-    # ScraperAPI key (preferred over proxy for Woolworths/Coles)
-    # Sign up free at scraperapi.com, paste your key here
+    # ScraperAPI key — set via env var OR saved via Settings page into DB
     scraperapi_key: str = ""
 
 
 settings = Settings()
+
+# ── Runtime key override ──────────────────────────────────────────────────────
+# Because pydantic Settings objects are immutable at runtime, we store any
+# DB-loaded or user-saved ScraperAPI key in a plain module-level variable.
+# All scrapers call get_scraperapi_key() rather than settings.scraperapi_key.
+
+_scraperapi_key_runtime: str = ""
+
+
+def get_scraperapi_key() -> str:
+    """Return ScraperAPI key: DB/runtime value takes priority over env var."""
+    return _scraperapi_key_runtime or settings.scraperapi_key
+
+
+def set_scraperapi_key(key: str) -> None:
+    global _scraperapi_key_runtime
+    _scraperapi_key_runtime = key
