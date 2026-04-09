@@ -12,6 +12,7 @@ Image CDN: https://cdn.productimages.coles.com.au/productimages{uri}
 """
 import re
 import json
+import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
 from app.config import settings
@@ -29,6 +30,15 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-AU,en;q=0.9",
     "Referer": "https://www.coles.com.au/",
 }
+
+
+def _scraperapi_url(target_url: str) -> str:
+    """Wrap a target URL with ScraperAPI if a key is configured."""
+    return f"http://api.scraperapi.com?api_key={settings.scraperapi_key}&url={urllib.parse.quote(target_url, safe='')}"
+
+
+def _use_scraperapi() -> bool:
+    return bool(settings.scraperapi_key)
 
 
 def _parse_product(item: dict) -> SearchResult | None:
@@ -76,9 +86,9 @@ class ColesScraper(BaseScraper):
             proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
-                timeout=settings.request_timeout_seconds,
+                timeout=60,  # longer timeout for proxy/ScraperAPI
                 follow_redirects=True,
-                proxy=proxy,
+                proxy=proxy if not _use_scraperapi() else None,
             )
         return self._client
 
@@ -93,7 +103,11 @@ class ColesScraper(BaseScraper):
             return self._build_id
 
         client = await self._get_client()
-        r = await client.get(f"{COLES_BASE}/api/_build_id_probe")
+        target = f"{COLES_BASE}/api/_build_id_probe"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(target))
+        else:
+            r = await client.get(target)
         match = re.search(
             r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
             r.text,
@@ -114,10 +128,14 @@ class ColesScraper(BaseScraper):
         client = await self._get_client()
         build_id = await self._get_build_id()
 
-        r = await client.get(
-            f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json",
-            params={"q": query},
-        )
+        target = f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json?q={urllib.parse.quote(query)}"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(target))
+        else:
+            r = await client.get(
+                f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json",
+                params={"q": query},
+            )
         r.raise_for_status()
         data = r.json()
 
@@ -139,9 +157,11 @@ class ColesScraper(BaseScraper):
 
         # URL format: /product/{slug}-{id}  e.g. /product/coles-full-cream-milk-3l-8150288
         slug_with_id = url.rstrip("/").split("/product/")[-1]
-        r = await client.get(
-            f"{COLES_BASE}/_next/data/{build_id}/en/product/{slug_with_id}.json",
-        )
+        target = f"{COLES_BASE}/_next/data/{build_id}/en/product/{slug_with_id}.json"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(target))
+        else:
+            r = await client.get(target)
 
         if r.status_code == 404:
             return await self._fetch_via_search(external_id, url)
@@ -154,9 +174,11 @@ class ColesScraper(BaseScraper):
         if redirect:
             # redirect is like "/product/coles-full-cream-milk-3l-8150288"
             canonical = redirect.split("/product/")[-1]
-            r = await client.get(
-                f"{COLES_BASE}/_next/data/{build_id}/en/product/{canonical}.json",
-            )
+            target2 = f"{COLES_BASE}/_next/data/{build_id}/en/product/{canonical}.json"
+            if _use_scraperapi():
+                r = await client.get(_scraperapi_url(target2))
+            else:
+                r = await client.get(target2)
             r.raise_for_status()
             page_props = r.json().get("pageProps", {})
 
@@ -197,10 +219,14 @@ class ColesScraper(BaseScraper):
         """Fallback: find a product by searching its ID."""
         client = await self._get_client()
         build_id = await self._get_build_id()
-        r = await client.get(
-            f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json",
-            params={"q": external_id},
-        )
+        target = f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json?q={urllib.parse.quote(external_id)}"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(target))
+        else:
+            r = await client.get(
+                f"{COLES_BASE}/_next/data/{build_id}/en/search/products.json",
+                params={"q": external_id},
+            )
         r.raise_for_status()
         data = r.json()
         for item in data.get("pageProps", {}).get("searchResults", {}).get("results", []):

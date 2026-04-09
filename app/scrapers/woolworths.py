@@ -5,6 +5,8 @@ Working endpoints:
   POST https://www.woolworths.com.au/apis/ui/Search/products  — product search
   GET  https://www.woolworths.com.au/apis/ui/product/detail?stockcode={id} — product detail
 """
+import json as _json
+import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
 from app.config import settings
@@ -50,6 +52,15 @@ def _parse_product(item: dict, store: str = "woolworths") -> SearchResult:
     )
 
 
+def _scraperapi_url(target_url: str) -> str:
+    """Wrap a target URL with ScraperAPI if a key is configured."""
+    return f"http://api.scraperapi.com?api_key={settings.scraperapi_key}&url={urllib.parse.quote(target_url, safe='')}"
+
+
+def _use_scraperapi() -> bool:
+    return bool(settings.scraperapi_key)
+
+
 class WoolworthsScraper(BaseScraper):
     store_slug = "woolworths"
 
@@ -57,19 +68,18 @@ class WoolworthsScraper(BaseScraper):
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Return a shared async client, creating one if needed.
-        The client persists cookies across requests (needed for session auth).
-        """
+        """Return a shared async client, creating one if needed."""
         if self._client is None or self._client.is_closed:
             proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
-                timeout=settings.request_timeout_seconds,
+                timeout=60,  # longer timeout for proxy/ScraperAPI
                 follow_redirects=True,
-                proxy=proxy,
+                proxy=proxy if not _use_scraperapi() else None,
             )
-            # Hit the homepage once to establish a session cookie
-            await self._client.get("https://www.woolworths.com.au/")
+            if not _use_scraperapi():
+                # Hit the homepage once to establish a session cookie
+                await self._client.get("https://www.woolworths.com.au/")
         return self._client
 
     async def close(self):
@@ -94,11 +104,20 @@ class WoolworthsScraper(BaseScraper):
 
         params = {"store_id": settings.woolworths_store_id} if settings.woolworths_store_id else {}
 
-        resp = await client.post(
-            f"{BASE_URL}/Search/products",
-            json=payload,
-            params=params,
-        )
+        if _use_scraperapi():
+            # ScraperAPI URL rewriting mode — send POST body via GET with render=false
+            target = f"{BASE_URL}/Search/products"
+            if params:
+                target += "?" + urllib.parse.urlencode(params)
+            api_url = _scraperapi_url(target)
+            resp = await client.post(api_url, json=payload)
+        else:
+            resp = await client.post(
+                f"{BASE_URL}/Search/products",
+                json=payload,
+                params=params,
+            )
+
         resp.raise_for_status()
         data = resp.json()
 
@@ -112,11 +131,12 @@ class WoolworthsScraper(BaseScraper):
     async def fetch_price(self, external_id: str, url: str) -> PriceResult:
         client = await self._get_client()
 
-        params = {"store_id": settings.woolworths_store_id} if settings.woolworths_store_id else {}
+        target = f"https://www.woolworths.com.au/api/v3/ui/schemaorg/product/{external_id}"
+        if _use_scraperapi():
+            resp = await client.get(_scraperapi_url(target))
+        else:
+            resp = await client.get(target)
 
-        resp = await client.get(
-            f"https://www.woolworths.com.au/api/v3/ui/schemaorg/product/{external_id}",
-        )
         resp.raise_for_status()
         data = resp.json()
 

@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     request_timeout_seconds: int = 30
 
     # Optional proxy for scrapers blocked by bot protection (Woolworths, Coles)
-    # e.g. "http://user:pass@proxy.example.com:8080" or ScraperAPI URL
+    # e.g. "http://user:pass@proxy.example.com:8080"
     scraper_proxy: str = ""
+
+    # ScraperAPI key (preferred over proxy for Woolworths/Coles)
+    # Sign up free at scraperapi.com, paste your key here
+    scraperapi_key: str = ""
 
     class Config:
         env_file = ".env"
