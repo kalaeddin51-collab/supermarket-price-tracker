@@ -152,6 +152,9 @@ class NotificationSettings(Base):
     quiet_hours_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     quiet_hours_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # ScraperAPI key (for Woolworths/Coles bot-protection bypass)
+    scraperapi_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     # Global alert sensitivity
     global_min_drop_pct: Mapped[float] = mapped_column(Float, default=5.0)
     notify_back_in_stock: Mapped[bool] = mapped_column(Boolean, default=True)

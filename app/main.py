@@ -1334,6 +1334,7 @@ async def save_settings(
     smtp_password: str = Form(""),
     default_sort: str = Form(""),
     default_store: str = Form("all"),
+    scraperapi_key: str = Form(""),
 ):
     form_data = await request.form()
     notify_days = ",".join(str(i) for i in range(7) if form_data.get(f"day_{i}") == "on")
@@ -1364,6 +1365,10 @@ async def save_settings(
         ns.smtp_password = smtp_password
     ns.default_sort  = default_sort  or ""
     ns.default_store = default_store or "all"
+    # Save ScraperAPI key and update runtime settings
+    if scraperapi_key:
+        ns.scraperapi_key = scraperapi_key
+        settings.scraperapi_key = scraperapi_key  # apply immediately
     ns.updated_at     = datetime.utcnow()
     db.commit()
 
@@ -2381,3 +2386,13 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
 @app.on_event("startup")
 async def startup():
     init_db()
+    # Load ScraperAPI key from DB if not set via env var
+    if not settings.scraperapi_key:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            ns = db.query(models.NotificationSettings).first()
+            if ns and ns.scraperapi_key:
+                settings.scraperapi_key = ns.scraperapi_key
+        finally:
+            db.close()
