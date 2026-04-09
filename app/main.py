@@ -752,6 +752,25 @@ async def watchlist_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+def _stores_for_suburb(suburb: str) -> list[str]:
+    """Return deduplicated store slugs available near a suburb."""
+    key = suburb.strip().lower()
+    if not key or key not in SUBURB_STORES:
+        return ALL_STORE_SLUGS  # fallback: show all stores
+    nearby = nearby_suburbs(key, km=5.0)
+    expanded = [k for k in nearby if k in SUBURB_STORES]
+    if key not in expanded:
+        expanded.insert(0, key)
+    seen: set[str] = set()
+    slugs: list[str] = []
+    for k in expanded:
+        for slug in SUBURB_STORES.get(k, []):
+            if slug not in seen:
+                seen.add(slug)
+                slugs.append(slug)
+    return slugs or ALL_STORE_SLUGS
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     ns = db.query(models.NotificationSettings).first()
@@ -762,11 +781,27 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         ns.poll_frequency = "weekly"
     if not hasattr(ns, "poll_day") or ns.poll_day is None:
         ns.poll_day = 0
+
+    # Build dynamic store list based on user's saved suburb
+    user_id = request.session.get("user_id")
+    user_suburb = ""
+    if user_id:
+        pref = db.query(models.UserPreference).filter(
+            models.UserPreference.user_id == user_id
+        ).first()
+        if pref and pref.suburb:
+            user_suburb = pref.suburb
+
+    available_stores = _stores_for_suburb(user_suburb)
+
     return templates.TemplateResponse(request, "settings.html", {
         "ns": ns,
         "notify_days_list": notify_days_list,
         "day_names": day_names,
         "page": "settings",
+        "available_stores": available_stores,
+        "store_labels": STORE_LABELS,
+        "store_colors": STORE_COLORS,
     })
 
 
