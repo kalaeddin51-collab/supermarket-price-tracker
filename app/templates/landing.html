@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Find Stores Near You{% endblock %}
+{% block title %}Price Tracker{% endblock %}
 
 {% block content %}
 <script>
-  /* ── Global helpers for vanilla-JS store card interaction ── */
+  /* ── Store card visual helpers ── */
   window.refreshStoreCards = function () {
     const st = window.__storeState;
     if (!st) return;
@@ -23,30 +23,23 @@
     if (cb) { cb.style.background = selected ? color : '#fff'; cb.style.borderColor = selected ? color : '#d1d5db'; }
     var ck = card.querySelector('.store-checkmark');
     if (ck) ck.style.display = selected ? '' : 'none';
-    var lbl = card.querySelector('.store-label');
-    if (lbl) lbl.textContent = selected ? 'Click to deselect' : 'Click to select';
   }
 
-  /* Event delegation on document — works regardless of hx-boost navigation,
-     HTMX swaps, or DOMContentLoaded timing. Scoped to #store-results. */
   document.addEventListener('click', function (e) {
     var st = window.__storeState;
     if (!st) return;
     var results = document.getElementById('store-results');
     if (!results || !results.contains(e.target)) return;
-    /* Buttons first */
     var selBtn = e.target.closest('[data-select-slugs]');
     if (selBtn) { st.selectAll(JSON.parse(selBtn.dataset.selectSlugs)); return; }
     var clrBtn = e.target.closest('[data-clear-slugs]');
     if (clrBtn) { st.clearSlugs(JSON.parse(clrBtn.dataset.clearSlugs)); return; }
-    /* Cards */
     var card = e.target.closest('[data-store-slug]');
     if (card) { st.toggle(card.dataset.storeSlug); return; }
     var igaCard = e.target.closest('[data-iga-slugs]');
     if (igaCard) { st.toggleMany(JSON.parse(igaCard.dataset.igaSlugs)); return; }
   });
 
-  /* Re-render visual state after HTMX swap */
   document.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail && e.detail.target && e.detail.target.id === 'store-results') {
       window.refreshStoreCards();
@@ -54,8 +47,6 @@
   });
 
   window.landingData = function() {
-    /* Read initial state from data-* attrs — keeps <script> Jinja-free so
-       browser security extensions don't block this script from executing. */
     var root = document.getElementById('landing-root');
     var rawStores = (root && root.dataset.savedStores) ? root.dataset.savedStores : '';
     var savedStores = rawStores ? rawStores.split(',').filter(Boolean) : [];
@@ -65,9 +56,9 @@
       selectedStores: savedStores,
       productQuery: '',
       savedSuburb: savedSuburb,
+      suburbInput: savedSuburb,
 
       init() {
-        /* Expose bridge for vanilla JS cards */
         var self = this;
         window.__storeState = {
           toggle:      function (slug)  { self.toggleStore(slug); window.refreshStoreCards(); },
@@ -83,6 +74,7 @@
           isSelected:  function (slug)  { return self.selectedStores.includes(slug); },
         };
 
+        /* Auto-load saved suburb into the store results panel */
         if (this.savedSuburb) {
           this.$nextTick(() => {
             const inp = document.getElementById('suburb-input');
@@ -90,7 +82,6 @@
           });
         }
 
-        /* Keep cards in sync when Alpine state changes (e.g. sidebar pills) */
         this.$watch('selectedStores', function () { window.refreshStoreCards(); });
       },
 
@@ -105,6 +96,17 @@
 
       isSelected(slug) { return this.selectedStores.includes(slug); },
 
+      get hasSuburb() { return this.suburbInput.trim().length > 0; },
+      get hasStores() { return this.selectedStores.length > 0; },
+      get canSearch() { return this.productQuery.trim().length > 0; },
+
+      get storeCount() { return this.selectedStores.length; },
+
+      get searchPlaceholder() {
+        if (this.hasSuburb) return 'Search for milk, eggs, bread…';
+        return 'Enter your suburb first, then search products';
+      },
+
       goSearch() {
         const q = this.productQuery.trim();
         if (!q) return;
@@ -116,6 +118,7 @@
 
       savePreferences() {
         const suburb = document.getElementById('suburb-input')?.value || '';
+        this.suburbInput = suburb;
         fetch('/api/preferences', {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -127,178 +130,250 @@
     };
   }
 </script>
+
 <div x-data="landingData()"
      id="landing-root"
      data-saved-stores="{{ saved_stores or '' }}"
      data-saved-suburb="{{ saved_suburb or '' }}"
      class="flex gap-6 items-start min-h-[calc(100vh-8rem)]">
 
-  <!-- ── Left sidebar ──────────────────────────────────────────────── -->
-  <aside class="w-72 shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-20">
+  <!-- ── Left sidebar: suburb + store filter ── -->
+  <aside class="w-64 shrink-0 sticky top-20 space-y-3">
 
-    <!-- Sidebar header -->
-    <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-      <h1 class="text-lg font-bold text-gray-900 mb-0.5">Find stores near you</h1>
-      <p class="text-xs text-gray-500">Search for a Sydney suburb or postcode</p>
-    </div>
-
-    <!-- Search input -->
-    <div class="px-5 py-4 border-b border-gray-100">
-      <div class="relative">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-        </span>
-        <input
-          id="suburb-input"
-          type="text"
-          name="q"
-          autocomplete="off"
-          placeholder="Enter suburb or postcode"
-          hx-get="/partials/suburb-stores"
-          hx-trigger="keyup changed delay:300ms"
-          hx-target="#store-results"
-          hx-include="this"
-          @change="savePreferences()"
-          class="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm
-                 focus:outline-none focus:ring-2 focus:ring-brand placeholder-gray-400"
-        >
-        <span class="htmx-indicator absolute right-3 top-1/2 -translate-y-1/2">
-          <svg class="w-4 h-4 animate-spin text-brand" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-        </span>
-      </div>
-    </div>
-
-    <!-- Store type filters -->
-    <div class="px-5 py-4 border-b border-gray-100">
-      <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Filter by store</p>
-      <ul class="space-y-2.5">
-        {% for slug, label, color in [
-          ('woolworths', 'Woolworths', '#007D40'),
-          ('coles',      'Coles',      '#E31A2F'),
-          ('harris_farm','Harris Farm','#F27200'),
-          ('iga',        'IGA',        '#D2232A'),
-        ] %}
-        <li class="flex items-center gap-2.5 cursor-pointer group"
-            @click="{% if slug == 'iga' %}
-              ['iga_north_sydney','iga_milsons_point','iga_crows_nest'].forEach(s => {
-                if (selectedStores.includes('iga_north_sydney') ? selectedStores.includes(s) : !selectedStores.includes(s)) {
-                  toggleStore(s);
-                } else {
-                  toggleStore(s);
-                }
-              });
-              savePreferences();
-            {% else %}toggleStore('{{ slug }}'){% endif %}">
-          <span class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all"
-                :style="{% if slug == 'iga' %}
-                  (selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest'))
-                    ? 'background:#D2232A; border-color:#D2232A'
-                    : 'background:#fff; border-color:#d1d5db'
-                {% else %}
-                  isSelected('{{ slug }}')
-                    ? 'background:{{ color }}; border-color:{{ color }}'
-                    : 'background:#fff; border-color:#d1d5db'
-                {% endif %}">
-            <svg {% if slug == 'iga' %}
-                 x-show="selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest')"
-                 {% else %}
-                 x-show="isSelected('{{ slug }}')"
-                 {% endif %}
-                 class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+    <!-- Suburb selector -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-4 pt-4 pb-3 border-b border-gray-100">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Your area</p>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
           </span>
-          <span class="flex items-center gap-2 text-sm text-gray-700 group-hover:text-gray-900 transition-colors select-none">
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{{ color }}"></span>
-            {{ label }}
+          <input
+            id="suburb-input"
+            type="text"
+            name="q"
+            autocomplete="off"
+            placeholder="Suburb or postcode"
+            hx-get="/partials/suburb-stores"
+            hx-trigger="keyup changed delay:300ms"
+            hx-target="#store-results"
+            hx-include="this"
+            @change="savePreferences()"
+            @keyup="suburbInput = $event.target.value"
+            class="w-full pl-8 pr-7 py-2 border border-gray-200 rounded-xl text-sm
+                   focus:outline-none focus:ring-2 focus:ring-brand placeholder-gray-400"
+          >
+          <!-- Clear button -->
+          <button x-show="suburbInput.length > 0" x-cloak type="button"
+            @click="suburbInput=''; $el.closest('div').querySelector('input').value=''; savePreferences(); document.getElementById('store-results').innerHTML=''"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+          <span class="htmx-indicator absolute right-2.5 top-1/2 -translate-y-1/2">
+            <svg class="w-3.5 h-3.5 animate-spin text-brand" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
           </span>
-        </li>
-        {% endfor %}
-      </ul>
+        </div>
+        <!-- Remembered suburb indicator -->
+        <p x-show="hasSuburb" x-cloak class="text-[11px] text-brand mt-1.5 flex items-center gap-1">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+          Area saved
+        </p>
+      </div>
 
-      <div class="flex gap-3 mt-3 pt-3 border-t border-gray-100">
-        <button type="button"
-          @click="selectedStores = ['woolworths','coles','harris_farm','iga_north_sydney','iga_milsons_point','iga_crows_nest']; savePreferences()"
-          class="text-xs text-brand hover:text-brand-dark font-semibold transition-colors">
-          Select all
-        </button>
-        <span class="text-gray-300">|</span>
-        <button type="button" @click="selectedStores = []; savePreferences()"
-          class="text-xs text-gray-400 hover:text-gray-600 font-medium transition-colors">
-          Clear
-        </button>
+      <!-- Store filter -->
+      <div class="px-4 py-3">
+        <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Filter stores</p>
+        <ul class="space-y-2">
+          {% for slug, label, color in [
+            ('woolworths', 'Woolworths', '#007D40'),
+            ('coles',      'Coles',      '#E31A2F'),
+            ('harris_farm','Harris Farm','#F27200'),
+            ('iga',        'IGA',        '#D2232A'),
+          ] %}
+          <li class="flex items-center gap-2 cursor-pointer group"
+              @click="{% if slug == 'iga' %}
+                ['iga_north_sydney','iga_milsons_point','iga_crows_nest'].forEach(s => toggleStore(s));
+                savePreferences();
+              {% else %}toggleStore('{{ slug }}'){% endif %}">
+            <span class="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                  :style="{% if slug == 'iga' %}
+                    (selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest'))
+                      ? 'background:#D2232A; border-color:#D2232A'
+                      : 'background:#fff; border-color:#d1d5db'
+                  {% else %}
+                    isSelected('{{ slug }}')
+                      ? 'background:{{ color }}; border-color:{{ color }}'
+                      : 'background:#fff; border-color:#d1d5db'
+                  {% endif %}">
+              <svg {% if slug == 'iga' %}
+                   x-show="selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest')"
+                   {% else %}
+                   x-show="isSelected('{{ slug }}')"
+                   {% endif %}
+                   class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </span>
+            <span class="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-gray-900 transition-colors select-none">
+              <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ color }}"></span>
+              {{ label }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="flex gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
+          <button type="button"
+            @click="selectedStores = ['woolworths','coles','harris_farm','iga_north_sydney','iga_milsons_point','iga_crows_nest']; savePreferences()"
+            class="text-xs text-brand hover:text-brand-dark font-semibold transition-colors">All</button>
+          <span class="text-gray-300">|</span>
+          <button type="button" @click="selectedStores = []; savePreferences()"
+            class="text-xs text-gray-400 hover:text-gray-600 font-medium transition-colors">Clear</button>
+        </div>
       </div>
     </div>
 
-    <!-- Product search -->
-    <div x-show="selectedStores.length > 0" x-cloak class="px-5 py-4"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100">
-      <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Search products</p>
-      <div class="flex gap-2">
-        <input type="text" x-model="productQuery" @keydown.enter="goSearch()"
-          placeholder="milk, bread, eggs…"
-          class="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-xl text-sm
-                 focus:outline-none focus:ring-2 focus:ring-brand placeholder-gray-400">
-        <button type="button" @click="goSearch()" :disabled="!productQuery.trim()"
-          class="px-3 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-semibold
-                 rounded-xl transition-colors disabled:opacity-40 shrink-0">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- Nearby stores panel (HTMX result) -->
+    <div x-show="hasSuburb" x-cloak
+         class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Nearby stores</p>
+      </div>
+      <div id="store-results" class="px-4 py-3 text-xs text-gray-400">
+        <!-- Populated by HTMX suburb search -->
+      </div>
+    </div>
+
+    <!-- No suburb state -->
+    <div x-show="!hasSuburb" class="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+      <p class="text-xs text-blue-700 font-medium">Enter your suburb above to see which stores are near you.</p>
+    </div>
+
+  </aside>
+
+  <!-- ── Centre: hero product search ── -->
+  <div class="flex-1 min-w-0 flex flex-col items-center justify-start pt-12">
+
+    <!-- Hero heading -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-2">Compare supermarket prices</h1>
+      <p class="text-gray-500 text-sm">
+        <span x-show="hasSuburb" x-cloak>
+          Searching <span class="font-semibold text-gray-700" x-text="suburbInput"></span> ·
+          <span class="font-semibold text-gray-700" x-text="storeCount"></span>
+          store<span x-show="storeCount !== 1">s</span> selected
+        </span>
+        <span x-show="!hasSuburb">Find the best deals across Woolworths, Coles, IGA &amp; Harris Farm</span>
+      </p>
+    </div>
+
+    <!-- Big search box -->
+    <div class="w-full max-w-xl">
+      <div class="relative shadow-md rounded-2xl"
+           :class="canSearch ? 'ring-2 ring-brand/40' : ''">
+        <input
+          type="text"
+          x-model="productQuery"
+          @keydown.enter="goSearch()"
+          :placeholder="searchPlaceholder"
+          :disabled="!hasSuburb && selectedStores.length === 0"
+          class="w-full pl-5 pr-14 py-4 text-base border border-gray-200 rounded-2xl
+                 focus:outline-none focus:ring-2 focus:ring-brand placeholder-gray-400
+                 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-all"
+        >
+        <button
+          type="button"
+          @click="goSearch()"
+          :disabled="!canSearch"
+          class="absolute right-2 top-1/2 -translate-y-1/2
+                 bg-brand hover:bg-brand-dark disabled:bg-gray-200
+                 text-white p-2.5 rounded-xl transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
         </button>
       </div>
-      <p class="text-[11px] text-gray-400 mt-1.5">
-        <span x-text="selectedStores.length" class="font-semibold text-gray-600"></span>
-        store<span x-show="selectedStores.length !== 1">s</span> selected
+
+      <!-- Quick search suggestions -->
+      <div class="flex flex-wrap gap-2 mt-3 justify-center">
+        {% for term in ['milk', 'eggs', 'bread', 'chicken', 'olive oil', 'butter'] %}
+        <button type="button"
+          @click="productQuery='{{ term }}'; goSearch()"
+          :disabled="selectedStores.length === 0 && !hasSuburb"
+          class="text-xs font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-full
+                 text-gray-600 hover:border-brand hover:text-brand transition-colors
+                 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
+          {{ term }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Store availability grid (shown after suburb entered, desktop) -->
+    <div x-show="hasSuburb" x-cloak class="w-full max-w-xl mt-10">
+      <div class="grid grid-cols-4 gap-2">
+        {% for slug, label, color in [
+          ('woolworths','Woolworths','#007D40'),
+          ('coles','Coles','#E31A2F'),
+          ('harris_farm','Harris Farm','#F27200'),
+          ('iga','IGA','#D2232A'),
+        ] %}
+        <div class="bg-white border rounded-xl p-2.5 flex flex-col items-center gap-1.5 shadow-sm transition-all"
+             :class="{% if slug == 'iga' %}
+               (selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest')) ? 'border-2 opacity-100' : 'border-gray-100 opacity-50'
+             {% else %}
+               isSelected('{{ slug }}') ? 'border-2 opacity-100' : 'border-gray-100 opacity-50'
+             {% endif %}"
+             :style="{% if slug == 'iga' %}
+               (selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest')) ? 'border-color:#D2232A' : ''
+             {% else %}
+               isSelected('{{ slug }}') ? 'border-color:{{ color }}' : ''
+             {% endif %}">
+          <span class="w-3 h-3 rounded-full" style="background:{{ color }}"></span>
+          <span class="text-[10px] font-semibold text-gray-700 text-center leading-tight">{{ label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="text-center text-xs text-gray-400 mt-2">
+        Toggle stores in the sidebar · <a href="/search" class="text-brand hover:underline font-medium">Browse all →</a>
       </p>
     </div>
 
-    <div class="px-5 py-3 bg-gray-50 border-t border-gray-100">
-      <a href="/search" class="text-xs text-brand hover:underline font-medium">Search all stores →</a>
-    </div>
-
-  </aside>
-
-  <!-- ── Main content ───────────────────────────────────────────────── -->
-  <div class="flex-1 min-w-0">
-    <div id="store-results">
-      <div class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mb-4">
-          <svg class="w-8 h-8 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-        </div>
-        <h2 class="text-lg font-bold text-gray-800 mb-1">Enter your suburb to get started</h2>
-        <p class="text-sm text-gray-400 max-w-xs">
-          Type a Sydney suburb or postcode on the left to see which stores are available near you.
-        </p>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 w-full max-w-lg">
-          {% for slug, label, color in [
-            ('woolworths','Woolworths','#007D40'),
-            ('coles','Coles','#E31A2F'),
-            ('harris_farm','Harris Farm','#F27200'),
-            ('iga','IGA','#D2232A'),
-          ] %}
-          <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
+    <!-- Empty state: no suburb yet -->
+    <div x-show="!hasSuburb" class="mt-12 text-center max-w-sm">
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        {% for slug, label, color, desc in [
+          ('woolworths','Woolworths','#007D40','Australia's largest supermarket'),
+          ('coles','Coles','#E31A2F','Fresh food &amp; groceries'),
+          ('harris_farm','Harris Farm','#F27200','Fresh produce specialist'),
+          ('iga','IGA','#D2232A','Local independent stores'),
+        ] %}
+        <div class="bg-white border border-gray-100 rounded-xl p-3 text-left shadow-sm">
+          <div class="flex items-center gap-2 mb-1">
             <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{{ color }}"></span>
-            <p class="text-xs font-semibold text-gray-700 truncate">{{ label }}</p>
+            <p class="text-xs font-bold text-gray-800">{{ label }}</p>
           </div>
-          {% endfor %}
+          <p class="text-[11px] text-gray-400 leading-tight">{{ desc }}</p>
         </div>
+        {% endfor %}
       </div>
+      <p class="text-xs text-gray-400">
+        Already know what you want?
+        <a href="/search" class="text-brand font-semibold hover:underline">Search all stores →</a>
+      </p>
     </div>
+
   </div>
 
 </div>
