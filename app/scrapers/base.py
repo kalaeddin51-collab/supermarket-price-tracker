@@ -60,22 +60,44 @@ class BaseScraper(ABC):
         Override in subclass for batch API calls if available.
         """
         import asyncio
+        import httpx
         from app.config import settings
 
         results = []
         for product in products:
-            try:
-                result = await self.fetch_price(product["external_id"], product["url"])
-            except Exception as exc:
-                result = PriceResult(
-                    external_id=product["external_id"],
-                    name=product.get("name", ""),
-                    price=None,
-                    url=product["url"],
-                    store=self.store_slug,
-                    error=True,
-                    error_message=str(exc),
-                )
+            result = await self._fetch_with_retry(product, settings.scrape_delay_seconds)
             results.append(result)
             await asyncio.sleep(settings.scrape_delay_seconds)
         return results
+
+    async def _fetch_with_retry(self, product: dict, base_delay: float, max_retries: int = 3) -> PriceResult:
+        """Fetch a single product price with exponential backoff on 429/529 rate-limit responses."""
+        import asyncio
+        import httpx
+
+        last_exc: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                return await self.fetch_price(product["external_id"], product["url"])
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 529) and attempt < max_retries:
+                    # Rate-limited: wait longer each attempt (3s → 9s → 27s)
+                    wait = base_delay * (3 ** attempt)
+                    await asyncio.sleep(wait)
+                    last_exc = exc
+                    continue
+                last_exc = exc
+                break
+            except Exception as exc:
+                last_exc = exc
+                break
+
+        return PriceResult(
+            external_id=product["external_id"],
+            name=product.get("name", ""),
+            price=None,
+            url=product["url"],
+            store=self.store_slug,
+            error=True,
+            error_message=str(last_exc),
+        )
