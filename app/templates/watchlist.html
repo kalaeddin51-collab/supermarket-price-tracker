@@ -146,8 +146,15 @@
 
 </div>
 
-<div id="watchlist-grid" class="grid sm:grid-cols-2 gap-3">
+<div id="watchlist-grid" class="space-y-2">
+  {% set ns = namespace(prev_base="") %}
   {% for e in enriched %}
+    {% if e.base_name != ns.prev_base and not loop.first %}
+      <div class="h-px bg-gray-100 my-3"></div>
+      {% set ns.prev_base = e.base_name %}
+    {% elif loop.first %}
+      {% set ns.prev_base = e.base_name %}
+    {% endif %}
     {% include "partials/watchlist_card.html" %}
   {% endfor %}
 </div>

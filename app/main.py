@@ -26,6 +26,23 @@ _login_attempts: dict[str, list] = {}
 _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 15 * 60  # 15 minutes
 
+def _base_name(n: str) -> str:
+    """Strip trailing size/weight tokens for grouping watchlist entries."""
+    return re.sub(r"\s+\d+(\.\d+)?\s*(ml|l|g|kg|pk|pack|x\d+)$", "", n.strip(), flags=re.IGNORECASE).lower().strip()
+
+
+def _names_similar(name_a: str, name_b: str, threshold: float = 0.6) -> bool:
+    """Return True if name_b shares enough key words with name_a."""
+    stop = {"the", "a", "an", "and", "of", "with", "for", "in", "at", "co", "x"}
+    def words(n):
+        return {w.lower() for w in re.sub(r"[^a-z0-9 ]", "", n.lower()).split() if w not in stop and len(w) > 1}
+    a, b = words(name_a), words(name_b)
+    if not a:
+        return True
+    overlap = len(a & b) / len(a)
+    return overlap >= threshold
+
+
 def _check_rate_limit(ip: str) -> bool:
     """Return True if IP is locked out."""
     now = datetime.utcnow()
@@ -729,7 +746,10 @@ async def watchlist_page(request: Request, db: Session = Depends(get_db)):
             "prev": prev,
             "drop_pct": drop_pct,
             "prices": [r.price for r in reversed(history) if r.price],
+            "base_name": _base_name(entry.product.name),
         })
+    # Group entries by normalized product name so same-product entries are adjacent
+    enriched.sort(key=lambda e: e["base_name"])
     # Savings & alerts summary for hero cards
     potential_savings = 0.0
     active_alerts = 0
@@ -1128,6 +1148,8 @@ async def watchlist_add(
     stores_added = [store]  # primary store already added
     for result in cross_results:
         if result is None or not result.name:
+            continue
+        if not _names_similar(name, result.name):
             continue
         # Upsert product for this store
         p = db.query(models.Product).filter(
