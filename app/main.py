@@ -78,16 +78,54 @@ async def health_check():
 
 @app.get("/debug/woolworths")
 async def debug_woolworths(q: str = "milk"):
-    """Debug endpoint: test Woolworths scraper and return raw error."""
-    from app.scrapers.woolworths import WoolworthsScraper
+    """Debug endpoint: test Woolworths scraper and return raw response details."""
+    import httpx as _httpx
+    from app.config import get_scraperapi_key
+    from app.scrapers.woolworths import WoolworthsScraper, _scraperapi_url, WOW_HOME
+
     scraper = WoolworthsScraper()
+    debug_info = {}
+
     try:
-        results = await scraper.search(q, limit=5)
+        # 1. Get build ID
+        build_id = await scraper._get_build_id()
+        debug_info["build_id"] = build_id
+
+        # 2. Fetch the Next.js data endpoint raw
+        client = await scraper._get_client()
+        target = (
+            f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
+            f"?searchTerm={q}"
+        )
+        api_url = _scraperapi_url(target)
+        r = await client.get(api_url)
+        debug_info["status_code"] = r.status_code
+        debug_info["response_len"] = len(r.text)
+
+        try:
+            data = r.json()
+            page_props = data.get("pageProps", {}) or {}
+            debug_info["page_props_keys"] = list(page_props.keys())[:20]
+            sr = page_props.get("searchResults") or page_props.get("search") or {}
+            if isinstance(sr, dict):
+                debug_info["searchResults_keys"] = list(sr.keys())[:10]
+                bundles = sr.get("Products", [])
+                debug_info["product_bundle_count"] = len(bundles)
+                if bundles:
+                    debug_info["first_bundle_keys"] = list(bundles[0].keys()) if isinstance(bundles[0], dict) else str(type(bundles[0]))
+        except Exception as je:
+            debug_info["json_error"] = str(je)
+            debug_info["raw_snippet"] = r.text[:500]
+
         await scraper.close()
-        return {"status": "ok", "count": len(results), "products": [r.name for r in results[:3]]}
+        return {"status": "ok", **debug_info}
+
     except Exception as exc:
         import traceback
-        return {"status": "error", "error": str(exc), "traceback": traceback.format_exc()[-1000:]}
+        await scraper.close()
+        return {"status": "error", "error": str(exc),
+                "debug": debug_info,
+                "traceback": traceback.format_exc()[-1500:]}
 
 
 def hash_password(password: str) -> str:
