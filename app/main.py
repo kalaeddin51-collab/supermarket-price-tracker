@@ -2379,15 +2379,23 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
 
 @app.on_event("startup")
 async def startup():
-    init_db()
-    # Load ScraperAPI key from DB if not set via env var
-    from app.database import SessionLocal
-    _startup_db = SessionLocal()
+    import logging
     try:
-        ns = _startup_db.query(models.NotificationSettings).first()
-        if ns and getattr(ns, "scraperapi_key", None):
-            set_scraperapi_key(ns.scraperapi_key)
-    except Exception:
-        pass  # column may not exist yet on first deploy
-    finally:
-        _startup_db.close()
+        init_db()
+    except Exception as e:
+        logging.error("init_db failed: %s", e)
+    # Load ScraperAPI key from DB if not set via env var
+    try:
+        from app.database import SessionLocal
+        _startup_db = SessionLocal()
+        try:
+            ns = _startup_db.query(models.NotificationSettings).first()
+            if ns and getattr(ns, "scraperapi_key", None):
+                set_scraperapi_key(ns.scraperapi_key)
+                logging.info("ScraperAPI key loaded from DB")
+        except Exception as e:
+            logging.warning("Could not load ScraperAPI key from DB: %s", e)
+        finally:
+            _startup_db.close()
+    except Exception as e:
+        logging.error("Startup DB load failed: %s", e)
