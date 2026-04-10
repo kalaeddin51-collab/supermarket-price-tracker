@@ -70,6 +70,39 @@ async def health_check():
     }
 
 
+@app.get("/debug/search-error")
+async def debug_search_error(db: Session = Depends(get_db)):
+    """Diagnose /search 500 errors."""
+    import traceback as _tb
+    results = {}
+    try:
+        ns = db.query(models.NotificationSettings).first()
+        results["ns_ok"] = True
+        results["ns_cols"] = [c for c in dir(ns) if not c.startswith("_")] if ns else []
+    except Exception as e:
+        db.rollback()
+        results["ns_error"] = str(e)
+        results["ns_tb"] = _tb.format_exc()[-1000:]
+
+    try:
+        from sqlalchemy import func, select as sa_select
+        latest_id_subq = (
+            sa_select(func.max(models.PriceRecord.id))
+            .group_by(models.PriceRecord.product_id)
+            .scalar_subquery()
+        )
+        count = db.query(models.PriceRecord).filter(
+            models.PriceRecord.id.in_(latest_id_subq)
+        ).count()
+        results["trending_ok"] = True
+        results["trending_count"] = count
+    except Exception as e:
+        db.rollback()
+        results["trending_error"] = str(e)
+
+    return JSONResponse(content=results)
+
+
 @app.get("/debug/woolworths")
 async def debug_woolworths(q: str = "milk"):
     """Debug endpoint: test Woolworths scraper."""
@@ -701,7 +734,11 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/search", response_class=HTMLResponse)
 async def search_page(request: Request, db: Session = Depends(get_db), q: str = "", store: str = "", stores: str = "", sort: str = ""):
-    ns = db.query(models.NotificationSettings).first()
+    try:
+        ns = db.query(models.NotificationSettings).first()
+    except Exception:
+        db.rollback()
+        ns = None
     effective_store = stores or store or (ns.default_store if ns else "all") or "all"
     effective_sort  = sort  or (ns.default_sort  if ns else "")    or ""
 
