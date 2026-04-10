@@ -83,15 +83,18 @@ def _parse_nextdata_product(item: dict) -> SearchResult | None:
     )
 
 
-def _scraperapi_url(target_url: str, country: str = "au") -> str:
+def _scraperapi_url(target_url: str, country: str = "au", render: bool = False) -> str:
     """Wrap a target URL with ScraperAPI using Australian residential IPs."""
-    return (
+    url = (
         f"http://api.scraperapi.com"
         f"?api_key={get_scraperapi_key()}"
         f"&url={urllib.parse.quote(target_url, safe='')}"
         f"&country_code={country}"
         f"&keep_headers=true"
     )
+    if render:
+        url += "&render=true"
+    return url
 
 
 def _use_scraperapi() -> bool:
@@ -110,7 +113,7 @@ class WoolworthsScraper(BaseScraper):
             proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
-                timeout=60,
+                timeout=120,  # render=true can take up to 90s
                 follow_redirects=True,
                 proxy=proxy if not _use_scraperapi() else None,
             )
@@ -135,11 +138,12 @@ class WoolworthsScraper(BaseScraper):
         """GET the Woolworths search HTML page through ScraperAPI and parse __NEXT_DATA__."""
         client = await self._get_client()
         search_url = f"{WOW_HOME}/shop/search/products?searchTerm={urllib.parse.quote(query)}"
-        api_url = _scraperapi_url(search_url)
+        # render=True executes JavaScript so Woolworths products load into the DOM
+        api_url = _scraperapi_url(search_url, render=True)
 
-        logger.info("Woolworths HTML search via ScraperAPI for %r", query)
+        logger.info("Woolworths HTML search via ScraperAPI (render=true) for %r", query)
         try:
-            resp = await client.get(api_url)
+            resp = await client.get(api_url, timeout=90)
             logger.info("Woolworths HTML resp: %d, len=%d", resp.status_code, len(resp.text))
         except Exception as exc:
             logger.error("Woolworths HTML request failed: %s", exc)
