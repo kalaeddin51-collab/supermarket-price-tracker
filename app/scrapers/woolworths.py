@@ -95,108 +95,99 @@ class WoolworthsScraper(BaseScraper):
         return await self._search_direct(query, limit)
 
     async def _search_playwright(self, query: str, limit: int) -> list[SearchResult]:
-        """Use Playwright headless Chromium to bypass Akamai JS challenge."""
+        """Use Playwright headless Chromium to bypass Akamai JS challenge.
+
+        Strategy: navigate to the search page and use wait_for_response()
+        to capture the search API JSON response as it's triggered by the page.
+        """
         try:
             from playwright.async_api import async_playwright
         except ImportError:
             raise RuntimeError("Playwright not installed — set USE_PLAYWRIGHT=false")
+
+        import re
 
         search_url = (
             f"{WOW_HOME}/shop/search/products"
             f"?searchTerm={urllib.parse.quote(query)}"
         )
 
-        captured: list[dict] = []
-        api_response_future: asyncio.Future = asyncio.get_running_loop().create_future()
-
         logger.info("Woolworths Playwright: launching browser for %r", query)
 
+        launch_args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-first-run",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--mute-audio",
+        ]
+
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--no-first-run",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-default-apps",
-                    "--disable-sync",
-                    "--disable-translate",
-                    "--metrics-recording-only",
-                    "--mute-audio",
-                    "--no-default-browser-check",
-                    "--safebrowsing-disable-auto-update",
-                    "--window-size=1280,800",
-                ],
-            )
+            browser = await p.chromium.launch(headless=True, args=launch_args)
             context = await browser.new_context(
                 user_agent=HEADERS["User-Agent"],
                 locale="en-AU",
                 timezone_id="Australia/Sydney",
                 viewport={"width": 1280, "height": 800},
-                extra_http_headers={
-                    "Accept-Language": "en-AU,en;q=0.9",
-                },
+                extra_http_headers={"Accept-Language": "en-AU,en;q=0.9"},
             )
-
             page = await context.new_page()
 
-            # Intercept the search API response via network events
-            async def handle_response(response):
-                if SEARCH_API_PATH in response.url and not api_response_future.done():
-                    try:
-                        body = await response.json()
-                        logger.info(
-                            "Woolworths: intercepted API response (status=%d)",
-                            response.status
-                        )
-                        api_response_future.set_result(body)
-                    except Exception as exc:
-                        logger.warning("Woolworths: could not parse intercepted response: %s", exc)
-
-            page.on("response", handle_response)
-
             try:
-                logger.info("Woolworths: navigating to %s", search_url)
-                await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
+                logger.info("Woolworths: navigating to search page")
 
-                # Wait for the API response to be captured (up to 20 seconds)
+                # Start navigation and wait for the API call simultaneously
+                async with page.expect_response(
+                    lambda r: SEARCH_API_PATH in r.url,
+                    timeout=45_000
+                ) as response_info:
+                    await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
+
+                api_response = await response_info.value
+                logger.info("Woolworths: API response captured (status=%d url=%s)",
+                            api_response.status, api_response.url)
+
                 try:
-                    data = await asyncio.wait_for(
-                        asyncio.shield(api_response_future),
-                        timeout=20.0
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning("Woolworths: API response not captured in 20s — checking DOM")
-                    # Fallback: try to parse __NEXT_DATA__ from the rendered page
-                    content = await page.content()
-                    import re
-                    match = re.search(
-                        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-                        content, re.DOTALL
-                    )
-                    if match:
-                        nd = _json.loads(match.group(1))
-                        data = nd.get("props", {}).get("pageProps", {})
-                    else:
-                        raise RuntimeError("Woolworths: no API response or __NEXT_DATA__ found")
+                    data = await api_response.json()
+                except Exception:
+                    body_text = await api_response.text()
+                    logger.warning("Woolworths: API non-JSON body: %s", body_text[:300])
+                    data = {}
 
+            except Exception as exc:
+                logger.warning("Woolworths: expect_response failed (%s) — parsing DOM", exc)
+                # Fallback: parse products from the fully rendered DOM
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=15_000)
+                except Exception:
+                    pass
+                content = await page.content()
+                match = re.search(
+                    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                    content, re.DOTALL
+                )
+                if match:
+                    nd = _json.loads(match.group(1))
+                    data = nd.get("props", {}).get("pageProps", {})
+                    logger.info("Woolworths: parsed __NEXT_DATA__ from DOM, keys=%s",
+                                list(data.keys())[:10])
+                else:
+                    logger.error("Woolworths: no API response or __NEXT_DATA__ in DOM")
+                    data = {}
             finally:
                 await context.close()
                 await browser.close()
 
-        # Parse results from the intercepted response
+        # Parse results — API shape: {"Products": [{"Products": [...]}]}
         products_raw = []
-
-        # Response shape from API: {"Products": [{"Products": [...]}]}
         for bundle in data.get("Products", []):
             if isinstance(bundle, dict):
                 products_raw.extend(bundle.get("Products", []))
 
-        # Fallback: __NEXT_DATA__ page props shape
+        # Fallback: pageProps shape from __NEXT_DATA__
         if not products_raw:
             sr = data.get("searchResults") or data.get("search") or {}
             if isinstance(sr, dict):
@@ -204,7 +195,7 @@ class WoolworthsScraper(BaseScraper):
                     if isinstance(bundle, dict):
                         products_raw.extend(bundle.get("Products", []))
 
-        logger.info("Woolworths Playwright: %d products for %r", len(products_raw), query)
+        logger.info("Woolworths Playwright: %d raw products for %r", len(products_raw), query)
         results = [p for p in (_parse_product(x) for x in products_raw) if p]
         return results[:limit]
 
