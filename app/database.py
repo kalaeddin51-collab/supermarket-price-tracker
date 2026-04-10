@@ -40,27 +40,46 @@ def init_db():
 
 
 def _migrate_columns():
-    """Add new columns to existing tables without dropping data."""
+    """Add new columns to existing tables without dropping data.
+
+    Works on both SQLite and PostgreSQL:
+    - SQLite: ALTER TABLE t ADD COLUMN c TYPE DEFAULT v
+    - PostgreSQL: same syntax but we check column existence first
+    """
+    import sqlalchemy as _sa
+
     new_columns = [
-        # (table, column, sql_type, default)
-        ("notification_settings", "email_address_2",  "VARCHAR(254)", "NULL"),
-        ("notification_settings", "email_address_3",  "VARCHAR(254)", "NULL"),
-        ("notification_settings", "poll_frequency",   "VARCHAR(20)",  "'weekly'"),
-        ("notification_settings", "poll_day",         "INTEGER",      "0"),
-        ("notification_settings", "smtp_user",        "VARCHAR(254)", "NULL"),
-        ("notification_settings", "smtp_password",    "VARCHAR(500)", "NULL"),
-        ("notification_settings", "scraperapi_key",    "VARCHAR(200)", "NULL"),
-        ("watchlist",             "user_id",           "INTEGER",      "NULL"),
-        ("shopping_lists",        "user_id",           "INTEGER",      "NULL"),
+        # (table, column, sql_type)
+        ("notification_settings", "email_address_2",  "VARCHAR(254)"),
+        ("notification_settings", "email_address_3",  "VARCHAR(254)"),
+        ("notification_settings", "poll_frequency",   "VARCHAR(20)"),
+        ("notification_settings", "poll_day",         "INTEGER"),
+        ("notification_settings", "smtp_user",        "VARCHAR(254)"),
+        ("notification_settings", "smtp_password",    "VARCHAR(500)"),
+        ("notification_settings", "scraperapi_key",   "VARCHAR(200)"),
+        ("watchlist",             "user_id",          "INTEGER"),
+        ("shopping_lists",        "user_id",          "INTEGER"),
     ]
+
+    is_postgres = "postgresql" in settings.database_url or "postgres" in settings.database_url
+
     with engine.connect() as conn:
-        for table, col, col_type, default in new_columns:
+        for table, col, col_type in new_columns:
             try:
-                conn.execute(
-                    __import__("sqlalchemy").text(
-                        f"ALTER TABLE {table} ADD COLUMN {col} {col_type} DEFAULT {default}"
-                    )
-                )
+                if is_postgres:
+                    # PostgreSQL: check information_schema before altering
+                    exists = conn.execute(_sa.text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name = :t AND column_name = :c"
+                    ), {"t": table, "c": col}).fetchone()
+                    if exists:
+                        continue
+                conn.execute(_sa.text(
+                    f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
+                ))
                 conn.commit()
             except Exception:
-                pass  # column already exists
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
