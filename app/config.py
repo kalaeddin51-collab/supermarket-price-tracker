@@ -26,8 +26,6 @@ class Settings(BaseSettings):
     # ScraperAPI key — set via env var OR saved via Settings page into DB
     scraperapi_key: str = ""
 
-    # Set to "false" to disable Playwright for Woolworths (e.g. if memory is tight)
-    use_playwright: str = "true"
 
 
 settings = Settings()
