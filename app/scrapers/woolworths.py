@@ -1,12 +1,13 @@
 """
-Woolworths scraper using their internal API (reverse-engineered from the website).
+Woolworths scraper — two strategies:
 
-Working endpoints:
-  POST https://www.woolworths.com.au/apis/ui/Search/products  — product search
-  GET  https://www.woolworths.com.au/apis/ui/product/detail?stockcode={id} — product detail
+1. Direct API (no proxy): POST to internal /apis/ui/Search/products
+2. ScraperAPI mode: GET the HTML search page and parse __NEXT_DATA__ JSON
+   (GET requests work reliably through ScraperAPI; POST forwarding is unreliable)
 """
 import json as _json
 import logging
+import re
 import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
@@ -15,6 +16,7 @@ from app.config import settings, get_scraperapi_key
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.woolworths.com.au/apis/ui"
+WOW_HOME = "https://www.woolworths.com.au"
 
 # Headers that mimic a normal browser session
 DEFAULT_HEADERS = {
@@ -23,10 +25,15 @@ DEFAULT_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/json, text/plain, */*",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-AU,en;q=0.9",
+    "Referer": "https://www.woolworths.com.au/",
+}
+
+API_HEADERS = {
+    **DEFAULT_HEADERS,
+    "Accept": "application/json, text/plain, */*",
     "Content-Type": "application/json",
-    "Referer": "https://www.woolworths.com.au/shop/search/products?searchTerm=milk",
     "Origin": "https://www.woolworths.com.au",
     "request-id": "|abc123.def456",
 }
@@ -51,6 +58,27 @@ def _parse_product(item: dict, store: str = "woolworths") -> SearchResult:
         store=store,
         image_url=image,
         category=category,
+        unit=cup_string,
+    )
+
+
+def _parse_nextdata_product(item: dict) -> SearchResult | None:
+    """Parse a product from __NEXT_DATA__ embedded in Woolworths HTML."""
+    stockcode = str(item.get("Stockcode", "") or item.get("stockcode", ""))
+    if not stockcode:
+        return None
+    name = item.get("Name", "") or item.get("name", "")
+    price = item.get("Price") or item.get("InstorePrice")
+    cup_string = item.get("CupString") or item.get("cupString")
+    image = f"https://cdn0.woolworths.media/content/wowproductimages/large/{stockcode}.jpg"
+
+    return SearchResult(
+        external_id=stockcode,
+        name=name,
+        price=float(price) if price is not None else None,
+        url=f"https://www.woolworths.com.au/shop/productdetails/{stockcode}",
+        store="woolworths",
+        image_url=image,
         unit=cup_string,
     )
 
@@ -82,13 +110,16 @@ class WoolworthsScraper(BaseScraper):
             proxy = settings.scraper_proxy or None
             self._client = httpx.AsyncClient(
                 headers=DEFAULT_HEADERS,
-                timeout=60,  # longer timeout for proxy/ScraperAPI
+                timeout=60,
                 follow_redirects=True,
                 proxy=proxy if not _use_scraperapi() else None,
             )
             if not _use_scraperapi():
                 # Hit the homepage once to establish a session cookie
-                await self._client.get("https://www.woolworths.com.au/")
+                try:
+                    await self._client.get(f"{WOW_HOME}/")
+                except Exception:
+                    pass
         return self._client
 
     async def close(self):
@@ -96,8 +127,79 @@ class WoolworthsScraper(BaseScraper):
             await self._client.aclose()
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        client = await self._get_client()
+        if _use_scraperapi():
+            return await self._search_via_html(query, limit)
+        return await self._search_via_api(query, limit)
 
+    async def _search_via_html(self, query: str, limit: int) -> list[SearchResult]:
+        """GET the Woolworths search HTML page through ScraperAPI and parse __NEXT_DATA__."""
+        client = await self._get_client()
+        search_url = f"{WOW_HOME}/shop/search/products?searchTerm={urllib.parse.quote(query)}"
+        api_url = _scraperapi_url(search_url)
+
+        logger.info("Woolworths HTML search via ScraperAPI for %r", query)
+        try:
+            resp = await client.get(api_url)
+            logger.info("Woolworths HTML resp: %d, len=%d", resp.status_code, len(resp.text))
+        except Exception as exc:
+            logger.error("Woolworths HTML request failed: %s", exc)
+            raise
+
+        resp.raise_for_status()
+
+        # Parse __NEXT_DATA__ embedded JSON
+        match = re.search(
+            r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+            resp.text,
+            re.DOTALL,
+        )
+        if not match:
+            logger.warning("Woolworths: no __NEXT_DATA__ found in HTML (len=%d)", len(resp.text))
+            logger.debug("Woolworths HTML snippet: %s", resp.text[:500])
+            return []
+
+        try:
+            data = _json.loads(match.group(1))
+        except Exception as exc:
+            logger.error("Woolworths: failed to parse __NEXT_DATA__ JSON: %s", exc)
+            return []
+
+        # Navigate the Next.js page props to find product list
+        page_props = data.get("props", {}).get("pageProps", {})
+
+        # Try multiple possible locations for products in the page props
+        products_raw = []
+
+        # Location 1: searchResults.Products bundles
+        search_results = page_props.get("searchResults", {}) or {}
+        for bundle in search_results.get("Products", []):
+            products_raw.extend(bundle.get("Products", []))
+
+        # Location 2: products list directly
+        if not products_raw:
+            products_raw = page_props.get("products", []) or []
+
+        # Location 3: search.products
+        if not products_raw:
+            search = page_props.get("search", {}) or {}
+            for bundle in search.get("Products", []):
+                products_raw.extend(bundle.get("Products", []))
+
+        logger.info("Woolworths HTML: found %d raw products", len(products_raw))
+
+        results = []
+        for item in products_raw:
+            parsed = _parse_nextdata_product(item)
+            if parsed:
+                results.append(parsed)
+            if len(results) >= limit:
+                break
+
+        return results
+
+    async def _search_via_api(self, query: str, limit: int) -> list[SearchResult]:
+        """POST to Woolworths internal API directly (works on residential IPs)."""
+        client = await self._get_client()
         payload = {
             "Filters": [],
             "IsSpecial": False,
@@ -110,44 +212,22 @@ class WoolworthsScraper(BaseScraper):
             "gpBoost": 0,
             "CategoryVersion": "v2",
         }
-
         params = {"store_id": settings.woolworths_store_id} if settings.woolworths_store_id else {}
-
-        if _use_scraperapi():
-            # ScraperAPI URL rewriting: POST to ScraperAPI which forwards to Woolworths
-            target = f"{BASE_URL}/Search/products"
-            if params:
-                target += "?" + urllib.parse.urlencode(params)
-            api_url = _scraperapi_url(target)
-            logger.info("Woolworths search via ScraperAPI: %s", api_url[:80])
-            resp = await client.post(
-                api_url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            logger.info("Woolworths ScraperAPI response: %s (len=%d)", resp.status_code, len(resp.text))
-            if resp.status_code != 200:
-                logger.warning("Woolworths ScraperAPI error body: %s", resp.text[:500])
-        else:
-            resp = await client.post(
-                f"{BASE_URL}/Search/products",
-                json=payload,
-                params=params,
-            )
-
+        resp = await client.post(
+            f"{BASE_URL}/Search/products",
+            json=payload,
+            params=params,
+            headers=API_HEADERS,
+        )
         resp.raise_for_status()
         data = resp.json()
-
-        # Response shape: {"Products": [{"Products": [...product dicts...]}]}
         products = []
         for bundle in data.get("Products", []):
             products.extend(bundle.get("Products", []))
-
         return [_parse_product(p) for p in products if p.get("Stockcode")]
 
     async def fetch_price(self, external_id: str, url: str) -> PriceResult:
         client = await self._get_client()
-
         target = f"https://www.woolworths.com.au/api/v3/ui/schemaorg/product/{external_id}"
         if _use_scraperapi():
             resp = await client.get(_scraperapi_url(target))
@@ -162,7 +242,6 @@ class WoolworthsScraper(BaseScraper):
         availability = offers.get("availability", "")
         in_stock = "InStock" in availability if availability else True
 
-        # Check priceSpecification for was/special price
         price_specs = offers.get("priceSpecification") or []
         was_price = None
         on_special = False
@@ -174,7 +253,6 @@ class WoolworthsScraper(BaseScraper):
 
         name = data.get("name", "")
         image = data.get("image", f"https://cdn0.woolworths.media/content/wowproductimages/large/{external_id}.jpg")
-        cup_string = None  # not available in schema.org format
 
         return PriceResult(
             external_id=external_id,
@@ -186,5 +264,5 @@ class WoolworthsScraper(BaseScraper):
             in_stock=in_stock,
             on_special=on_special,
             image_url=image,
-            unit=cup_string,
+            unit=None,
         )
