@@ -1,12 +1,11 @@
 """
-Woolworths scraper — Akamai bypass via Chrome TLS impersonation.
+Woolworths scraper — mobile app API approach.
 
-Strategy:
-  • Uses curl_cffi which impersonates Chrome's TLS fingerprint (JA3/JA4).
-  • Combined with ScraperAPI residential AU proxies, this fools Akamai.
-  • If curl_cffi unavailable, falls back to httpx (may be blocked).
+The Woolworths mobile app uses the same backend API (/apis/ui/Search/products)
+but with iOS/Android app headers. Mobile apps bypass Akamai's JavaScript
+challenge requirement since native apps don't run browser JavaScript.
 
-Endpoint: POST https://www.woolworths.com.au/apis/ui/Search/products
+Falls back to direct POST (no proxy) if no ScraperAPI key.
 """
 import json as _json
 import logging
@@ -21,6 +20,19 @@ WOW_HOME = "https://www.woolworths.com.au"
 SEARCH_API = f"{WOW_HOME}/apis/ui/Search/products"
 DETAIL_API = f"{WOW_HOME}/api/v3/ui/schemaorg/product"
 
+# Mobile app headers — bypasses Akamai web bot detection
+MOBILE_HEADERS = {
+    "User-Agent": "Woolworths/10.6.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X)",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-AU",
+    "Content-Type": "application/json",
+    "Origin": WOW_HOME,
+    "Referer": f"{WOW_HOME}/",
+    "x-requested-with": "au.com.woolworths",
+    "wow-app-info": "platform=ios,version=10.6.0",
+}
+
+# Also try desktop browser headers as fallback
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -45,16 +57,25 @@ BROWSER_HEADERS = {
 try:
     from curl_cffi.requests import AsyncSession as CurlSession
     _HAS_CURL_CFFI = True
-    logger.info("curl_cffi available — Woolworths will use Chrome TLS impersonation")
 except ImportError:
     _HAS_CURL_CFFI = False
-    logger.warning("curl_cffi not available — Woolworths may be blocked by Akamai")
+    logger.warning("curl_cffi not available")
 
 
 def _scraperapi_proxy_url() -> str:
-    """Return ScraperAPI as an HTTPS proxy URL for curl_cffi."""
     key = get_scraperapi_key()
     return f"http://scraperapi.country_code=au:{key}@proxy-server.scraperapi.com:8001"
+
+
+def _scraperapi_url(target_url: str) -> str:
+    """URL rewriting mode for simple GET requests."""
+    return (
+        f"http://api.scraperapi.com"
+        f"?api_key={get_scraperapi_key()}"
+        f"&url={urllib.parse.quote(target_url, safe='')}"
+        f"&country_code=au"
+        f"&keep_headers=true"
+    )
 
 
 def _use_scraperapi() -> bool:
@@ -84,24 +105,23 @@ class WoolworthsScraper(BaseScraper):
     store_slug = "woolworths"
 
     def __init__(self):
-        self._client: httpx.AsyncClient | None = None
+        self._httpx_client: httpx.AsyncClient | None = None
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Fallback httpx client (used only when curl_cffi is unavailable)."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                headers=BROWSER_HEADERS,
+    async def _get_httpx_client(self) -> httpx.AsyncClient:
+        if self._httpx_client is None or self._httpx_client.is_closed:
+            self._httpx_client = httpx.AsyncClient(
+                headers=MOBILE_HEADERS,
                 timeout=60,
                 follow_redirects=True,
             )
-        return self._client
+        return self._httpx_client
 
     async def close(self):
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        if self._httpx_client and not self._httpx_client.is_closed:
+            await self._httpx_client.aclose()
 
-    async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        payload = {
+    def _build_payload(self, query: str, limit: int) -> dict:
+        return {
             "Filters": [],
             "IsSpecial": False,
             "Location": f"/shop/search/products?searchTerm={query}",
@@ -113,101 +133,88 @@ class WoolworthsScraper(BaseScraper):
             "gpBoost": 0,
             "CategoryVersion": "v2",
         }
-        params = {}
-        if settings.woolworths_store_id:
-            params["store_id"] = settings.woolworths_store_id
 
+    def _build_url(self) -> str:
         url = SEARCH_API
-        if params:
-            url += "?" + urllib.parse.urlencode(params)
+        if settings.woolworths_store_id:
+            url += f"?store_id={settings.woolworths_store_id}"
+        return url
 
+    async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
+        url = self._build_url()
+        payload = self._build_payload(query, limit)
+
+        # Strategy 1: curl_cffi with mobile headers (bypasses Akamai JS challenge)
         if _HAS_CURL_CFFI:
-            data = await self._post_curl(url, payload)
-        else:
-            data = await self._post_httpx(url, payload)
+            try:
+                data = await self._post_with_curl(url, payload, MOBILE_HEADERS)
+                products_raw = []
+                for bundle in data.get("Products", []):
+                    products_raw.extend(bundle.get("Products", []))
+                if products_raw:
+                    logger.info("Woolworths mobile API: %d products for %r", len(products_raw), query)
+                    return [p for p in (_parse_product(x) for x in products_raw) if p]
+                logger.info("Woolworths mobile API returned 0 — trying browser headers")
+            except Exception as exc:
+                logger.warning("Woolworths mobile headers failed (%s) — trying browser headers", exc)
 
+            # Strategy 2: curl_cffi with browser headers
+            try:
+                data = await self._post_with_curl(url, payload, BROWSER_HEADERS)
+                products_raw = []
+                for bundle in data.get("Products", []):
+                    products_raw.extend(bundle.get("Products", []))
+                logger.info("Woolworths browser headers: %d products for %r", len(products_raw), query)
+                return [p for p in (_parse_product(x) for x in products_raw) if p]
+            except Exception as exc:
+                logger.warning("Woolworths browser headers also failed: %s", exc)
+                raise
+
+        # Fallback: plain httpx (may be blocked)
+        client = await self._get_httpx_client()
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
         products_raw = []
         for bundle in data.get("Products", []):
             products_raw.extend(bundle.get("Products", []))
-
-        logger.info("Woolworths search: %d products for %r", len(products_raw), query)
         return [p for p in (_parse_product(x) for x in products_raw) if p]
 
-    async def _post_curl(self, url: str, payload: dict) -> dict:
-        """POST using curl_cffi with Chrome TLS fingerprint + ScraperAPI residential proxy.
-
-        We must first GET the homepage to establish session cookies, then POST the
-        search API. Both requests go through the same curl_cffi session so cookies
-        are preserved automatically.
-        """
+    async def _post_with_curl(self, url: str, payload: dict, headers: dict) -> dict:
+        """POST using curl_cffi + ScraperAPI proxy."""
         proxies = None
         if _use_scraperapi():
             proxy_url = _scraperapi_proxy_url()
             proxies = {"https": proxy_url, "http": proxy_url}
-            logger.info("Woolworths: curl_cffi via ScraperAPI proxy (session warm-up + POST)")
-        else:
-            logger.info("Woolworths: curl_cffi direct POST")
 
         async with CurlSession(impersonate="chrome124") as session:
-            # Step 1: warm up session cookies by visiting a lightweight page
-            try:
-                warmup_headers = {k: v for k, v in BROWSER_HEADERS.items()
-                                  if k != "Content-Type"}
-                warmup_headers["Accept"] = "text/html,application/xhtml+xml,*/*;q=0.8"
-                warmup = await session.get(
-                    WOW_HOME,
-                    headers=warmup_headers,
-                    proxies=proxies,
-                    timeout=30,
-                    verify=False,
-                )
-                logger.info("Woolworths warmup: status=%d cookies=%s",
-                            warmup.status_code, list(session.cookies.keys())[:5])
-            except Exception as exc:
-                logger.warning("Woolworths warmup failed (continuing anyway): %s", exc)
-
-            # Step 2: POST the search with the established cookies
             resp = await session.post(
                 url,
                 json=payload,
-                headers=BROWSER_HEADERS,
+                headers=headers,
                 proxies=proxies,
                 timeout=60,
                 verify=False,
             )
 
-        logger.info("Woolworths search response: status=%d len=%d", resp.status_code, len(resp.text))
+        logger.info("Woolworths curl POST: status=%d len=%d headers_ua=%s",
+                    resp.status_code, len(resp.text), headers.get("User-Agent", "")[:40])
         if resp.status_code != 200:
-            logger.warning("Woolworths non-200 body: %s", resp.text[:500])
-        resp.raise_for_status()
-        return resp.json()
-
-    async def _post_httpx(self, url: str, payload: dict) -> dict:
-        """Fallback: POST using httpx (may be blocked by Akamai)."""
-        client = await self._get_client()
-        resp = await client.post(url, json=payload)
-        logger.info("Woolworths httpx response: status=%d", resp.status_code)
+            logger.warning("Woolworths non-200 body: %s", resp.text[:300])
         resp.raise_for_status()
         return resp.json()
 
     async def fetch_price(self, external_id: str, url: str) -> PriceResult:
         target = f"{DETAIL_API}/{external_id}"
 
-        if _HAS_CURL_CFFI:
-            proxies = None
-            if _use_scraperapi():
-                proxy_url = _scraperapi_proxy_url()
-                proxies = {"https": proxy_url, "http": proxy_url}
+        if _HAS_CURL_CFFI and _use_scraperapi():
+            proxy_url = _scraperapi_proxy_url()
+            proxies = {"https": proxy_url, "http": proxy_url}
             async with CurlSession(impersonate="chrome124") as session:
-                resp = await session.get(
-                    target,
-                    headers=BROWSER_HEADERS,
-                    proxies=proxies,
-                    timeout=60,
-                    verify=False,
-                )
+                resp = await session.get(target, headers=BROWSER_HEADERS,
+                                         proxies=proxies, timeout=60, verify=False)
         else:
-            client = await self._get_client()
+            client = await self._get_httpx_client()
             resp = await client.get(target)
 
         resp.raise_for_status()
