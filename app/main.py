@@ -79,63 +79,24 @@ async def health_check():
 
 @app.get("/debug/woolworths")
 async def debug_woolworths(q: str = "milk"):
-    """Debug endpoint: test Woolworths scraper and return raw response details."""
+    """Debug endpoint: test Woolworths scraper."""
     import traceback as _tb
-    from app.scrapers.woolworths import WoolworthsScraper, _scraperapi_url, WOW_HOME
-
-    scraper = WoolworthsScraper()
-    debug_info = {}
     try:
-        from app.config import get_scraperapi_key
-    except Exception:
-        get_scraperapi_key = lambda: ""
-
-    try:
-        # 1. Get build ID
-        build_id = await scraper._get_build_id()
-        debug_info["build_id"] = build_id
-
-        # 2. Fetch the Next.js data endpoint raw
-        client = await scraper._get_client()
-        target = (
-            f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
-            f"?searchTerm={q}"
-        )
-        api_url = _scraperapi_url(target)
-        r = await client.get(api_url)
-        debug_info["status_code"] = r.status_code
-        debug_info["response_len"] = len(r.text)
-
-        try:
-            data = r.json()
-            page_props = data.get("pageProps", {}) or {}
-            debug_info["page_props_keys"] = list(page_props.keys())[:20]
-            sr = page_props.get("searchResults") or page_props.get("search") or {}
-            if isinstance(sr, dict):
-                debug_info["searchResults_keys"] = list(sr.keys())[:10]
-                bundles = sr.get("Products", [])
-                debug_info["product_bundle_count"] = len(bundles)
-                if bundles:
-                    debug_info["first_bundle_keys"] = list(bundles[0].keys()) if isinstance(bundles[0], dict) else str(type(bundles[0]))
-        except Exception as je:
-            debug_info["json_error"] = str(je)
-            debug_info["raw_snippet"] = r.text[:500]
-
+        from app.scrapers.woolworths import WoolworthsScraper
+        scraper = WoolworthsScraper()
+        results = await scraper.search(q, limit=5)
         await scraper.close()
-        return {"status": "ok", **debug_info}
-
+        return JSONResponse(content={
+            "status": "ok",
+            "count": len(results),
+            "products": [{"name": r.name, "price": r.price} for r in results[:3]],
+        })
     except Exception as exc:
-        import traceback as _tb
-        try:
-            await scraper.close()
-        except Exception:
-            pass
-        return JSONResponse(
-            status_code=200,  # return 200 so the response body is readable
-            content={"status": "error", "error": str(exc),
-                     "debug": debug_info,
-                     "traceback": _tb.format_exc()[-2000:]}
-        )
+        return JSONResponse(content={
+            "status": "error",
+            "error": str(exc),
+            "traceback": _tb.format_exc()[-2000:],
+        })
 
 
 def hash_password(password: str) -> str:
