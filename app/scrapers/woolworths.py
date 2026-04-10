@@ -1,10 +1,12 @@
 """
-Woolworths scraper.
+Woolworths scraper — Akamai bypass via Chrome TLS impersonation.
 
-Two strategies:
-1. ScraperAPI mode: POST to internal API via ScraperAPI premium proxies
-   (premium=true uses stronger residential IPs that bypass Akamai)
-2. Direct mode: POST to internal API directly (works on residential IPs)
+Strategy:
+  • Uses curl_cffi which impersonates Chrome's TLS fingerprint (JA3/JA4).
+  • Combined with ScraperAPI residential AU proxies, this fools Akamai.
+  • If curl_cffi unavailable, falls back to httpx (may be blocked).
+
+Endpoint: POST https://www.woolworths.com.au/apis/ui/Search/products
 """
 import json as _json
 import logging
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 WOW_HOME = "https://www.woolworths.com.au"
 SEARCH_API = f"{WOW_HOME}/apis/ui/Search/products"
+DETAIL_API = f"{WOW_HOME}/api/v3/ui/schemaorg/product"
 
 BROWSER_HEADERS = {
     "User-Agent": (
@@ -38,6 +41,25 @@ BROWSER_HEADERS = {
     "request-id": "|abc123.def456",
 }
 
+# Try to import curl_cffi for Chrome TLS fingerprint impersonation
+try:
+    from curl_cffi.requests import AsyncSession as CurlSession
+    _HAS_CURL_CFFI = True
+    logger.info("curl_cffi available — Woolworths will use Chrome TLS impersonation")
+except ImportError:
+    _HAS_CURL_CFFI = False
+    logger.warning("curl_cffi not available — Woolworths may be blocked by Akamai")
+
+
+def _scraperapi_proxy_url() -> str:
+    """Return ScraperAPI as an HTTPS proxy URL for curl_cffi."""
+    key = get_scraperapi_key()
+    return f"http://scraperapi.country_code=au:{key}@proxy-server.scraperapi.com:8001"
+
+
+def _use_scraperapi() -> bool:
+    return bool(get_scraperapi_key())
+
 
 def _parse_product(item: dict) -> SearchResult | None:
     stockcode = str(item.get("Stockcode", ""))
@@ -58,25 +80,6 @@ def _parse_product(item: dict) -> SearchResult | None:
     )
 
 
-def _scraperapi_url(target_url: str, premium: bool = True) -> str:
-    """Build ScraperAPI URL with Australian residential IPs.
-    premium=True uses top-tier proxies that can bypass Akamai bot protection."""
-    url = (
-        f"http://api.scraperapi.com"
-        f"?api_key={get_scraperapi_key()}"
-        f"&url={urllib.parse.quote(target_url, safe='')}"
-        f"&country_code=au"
-        f"&keep_headers=true"
-    )
-    if premium:
-        url += "&premium=true"
-    return url
-
-
-def _use_scraperapi() -> bool:
-    return bool(get_scraperapi_key())
-
-
 class WoolworthsScraper(BaseScraper):
     store_slug = "woolworths"
 
@@ -84,18 +87,13 @@ class WoolworthsScraper(BaseScraper):
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
+        """Fallback httpx client (used only when curl_cffi is unavailable)."""
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 headers=BROWSER_HEADERS,
-                timeout=90,
+                timeout=60,
                 follow_redirects=True,
             )
-            if not _use_scraperapi():
-                # Warm up session cookie
-                try:
-                    await self._client.get(f"{WOW_HOME}/")
-                except Exception:
-                    pass
         return self._client
 
     async def close(self):
@@ -103,7 +101,6 @@ class WoolworthsScraper(BaseScraper):
             await self._client.aclose()
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        client = await self._get_client()
         payload = {
             "Filters": [],
             "IsSpecial": False,
@@ -116,45 +113,77 @@ class WoolworthsScraper(BaseScraper):
             "gpBoost": 0,
             "CategoryVersion": "v2",
         }
-        params = {"store_id": settings.woolworths_store_id} if settings.woolworths_store_id else {}
+        params = {}
+        if settings.woolworths_store_id:
+            params["store_id"] = settings.woolworths_store_id
 
-        if _use_scraperapi():
-            # POST via ScraperAPI — premium AU residential proxies bypass Akamai
-            target = SEARCH_API
-            if params:
-                target += "?" + urllib.parse.urlencode(params)
-            api_url = _scraperapi_url(target, premium=True)
-            logger.info("Woolworths search via ScraperAPI premium for %r", query)
-            resp = await client.post(api_url, json=payload)
+        url = SEARCH_API
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+
+        if _HAS_CURL_CFFI:
+            data = await self._post_curl(url, payload)
         else:
-            resp = await client.post(SEARCH_API, json=payload, params=params)
+            data = await self._post_httpx(url, payload)
 
-        logger.info("Woolworths search response: status=%d len=%d", resp.status_code, len(resp.text))
-        if resp.status_code != 200:
-            logger.warning("Woolworths non-200: %s", resp.text[:500])
-
-        resp.raise_for_status()
-
-        try:
-            data = resp.json()
-        except Exception as exc:
-            logger.error("Woolworths: could not parse JSON response: %s | text: %s", exc, resp.text[:300])
-            raise RuntimeError(f"Woolworths returned non-JSON response (status={resp.status_code})") from exc
-
-        # Response shape: {"Products": [{"Products": [...product dicts...]}]}
         products_raw = []
         for bundle in data.get("Products", []):
             products_raw.extend(bundle.get("Products", []))
 
-        logger.info("Woolworths: found %d products for %r", len(products_raw), query)
+        logger.info("Woolworths search: %d products for %r", len(products_raw), query)
         return [p for p in (_parse_product(x) for x in products_raw) if p]
 
-    async def fetch_price(self, external_id: str, url: str) -> PriceResult:
-        client = await self._get_client()
-        target = f"{WOW_HOME}/api/v3/ui/schemaorg/product/{external_id}"
+    async def _post_curl(self, url: str, payload: dict) -> dict:
+        """POST using curl_cffi with Chrome TLS fingerprint + ScraperAPI residential proxy."""
+        proxies = None
         if _use_scraperapi():
-            resp = await client.get(_scraperapi_url(target, premium=False))
+            proxy_url = _scraperapi_proxy_url()
+            proxies = {"https": proxy_url, "http": proxy_url}
+            logger.info("Woolworths: curl_cffi POST via ScraperAPI proxy for %s", url[:60])
         else:
+            logger.info("Woolworths: curl_cffi POST direct for %s", url[:60])
+
+        async with CurlSession(impersonate="chrome124") as session:
+            resp = await session.post(
+                url,
+                json=payload,
+                headers=BROWSER_HEADERS,
+                proxies=proxies,
+                timeout=60,
+                verify=False,  # ScraperAPI proxy uses its own cert
+            )
+        logger.info("Woolworths curl_cffi response: status=%d len=%d", resp.status_code, len(resp.text))
+        if resp.status_code != 200:
+            logger.warning("Woolworths non-200 body: %s", resp.text[:400])
+        resp.raise_for_status()
+        return resp.json()
+
+    async def _post_httpx(self, url: str, payload: dict) -> dict:
+        """Fallback: POST using httpx (may be blocked by Akamai)."""
+        client = await self._get_client()
+        resp = await client.post(url, json=payload)
+        logger.info("Woolworths httpx response: status=%d", resp.status_code)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def fetch_price(self, external_id: str, url: str) -> PriceResult:
+        target = f"{DETAIL_API}/{external_id}"
+
+        if _HAS_CURL_CFFI:
+            proxies = None
+            if _use_scraperapi():
+                proxy_url = _scraperapi_proxy_url()
+                proxies = {"https": proxy_url, "http": proxy_url}
+            async with CurlSession(impersonate="chrome124") as session:
+                resp = await session.get(
+                    target,
+                    headers=BROWSER_HEADERS,
+                    proxies=proxies,
+                    timeout=60,
+                    verify=False,
+                )
+        else:
+            client = await self._get_client()
             resp = await client.get(target)
 
         resp.raise_for_status()
