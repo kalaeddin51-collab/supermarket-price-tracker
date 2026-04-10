@@ -88,47 +88,58 @@ class WoolworthsScraper(BaseScraper):
             await self._client.aclose()
 
     async def _get_build_id(self) -> str:
-        """Extract Next.js buildId from a lightweight Woolworths page."""
+        """Extract Next.js buildId from Woolworths — tries multiple probe URLs."""
         if self._build_id:
             return self._build_id
 
         client = await self._get_client()
 
-        # Use a non-existent API path — returns a Next.js 404 page with __NEXT_DATA__
-        # This is the same trick used for Coles and doesn't trigger Akamai
-        probe_url = f"{WOW_HOME}/api/__build_probe"
-        if _use_scraperapi():
-            r = await client.get(_scraperapi_url(probe_url))
-        else:
-            r = await client.get(probe_url)
+        # Try multiple probe URLs from least to most likely to be bot-blocked
+        probe_urls = [
+            f"{WOW_HOME}/shop/browse/fruit-veg",   # category page
+            f"{WOW_HOME}/shop/specials/browse",     # specials
+            f"{WOW_HOME}/shop/browse/drinks",       # another category
+            f"{WOW_HOME}/",                          # homepage
+        ]
 
-        logger.info("Woolworths build probe: status=%d len=%d", r.status_code, len(r.text))
-
-        # Try __NEXT_DATA__ JSON block
-        match = re.search(
-            r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-            r.text, re.DOTALL
-        )
-        if match:
+        for probe_url in probe_urls:
             try:
-                data = _json.loads(match.group(1))
-                self._build_id = data.get("buildId")
-            except Exception:
-                pass
+                if _use_scraperapi():
+                    r = await client.get(_scraperapi_url(probe_url))
+                else:
+                    r = await client.get(probe_url)
 
-        # Fallback: extract from _next/static chunk path
-        if not self._build_id:
-            bm = re.search(r'/_next/static/([a-zA-Z0-9_-]+)/_buildManifest', r.text)
-            if bm:
-                self._build_id = bm.group(1)
+                logger.info("Woolworths probe %s: status=%d len=%d",
+                            probe_url.split("/")[-1] or "home", r.status_code, len(r.text))
 
-        if not self._build_id:
-            logger.warning("Woolworths: could not find buildId in probe (len=%d), snippet: %s",
-                           len(r.text), r.text[:200])
-            raise RuntimeError("Could not determine Woolworths Next.js buildId")
+                # Try __NEXT_DATA__ JSON block
+                match = re.search(
+                    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                    r.text, re.DOTALL
+                )
+                if match:
+                    try:
+                        data = _json.loads(match.group(1))
+                        bid = data.get("buildId")
+                        if bid:
+                            self._build_id = bid
+                            logger.info("Woolworths buildId: %s (from %s)", bid, probe_url)
+                            return self._build_id
+                    except Exception:
+                        pass
 
-        logger.info("Woolworths buildId: %s", self._build_id)
-        return self._build_id
+                # Fallback: extract from _next/static build manifest path in HTML
+                bm = re.search(r'/_next/static/([a-zA-Z0-9_-]+)/_buildManifest', r.text)
+                if bm:
+                    self._build_id = bm.group(1)
+                    logger.info("Woolworths buildId from manifest: %s", self._build_id)
+                    return self._build_id
+
+            except Exception as exc:
+                logger.warning("Woolworths probe %s failed: %s", probe_url, exc)
+                continue
+
+        raise RuntimeError("Could not determine Woolworths Next.js buildId")
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
         if _use_scraperapi():
