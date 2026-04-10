@@ -151,26 +151,30 @@ class WoolworthsScraper(BaseScraper):
         client = await self._get_client()
         build_id = await self._get_build_id()
 
-        target = (
-            f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
-            f"?searchTerm={urllib.parse.quote(query)}"
-        )
-        logger.info("Woolworths Next.js GET: %s", target)
-        r = await client.get(_scraperapi_url(target))
-        logger.info("Woolworths Next.js resp: status=%d len=%d", r.status_code, len(r.text))
+        # Woolworths Next.js data URLs — try multiple path structures
+        # (Woolworths locale prefix may differ from Coles)
+        candidates = [
+            f"{WOW_HOME}/_next/data/{build_id}/en/shop/search/products.json?searchTerm={urllib.parse.quote(query)}",
+            f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json?searchTerm={urllib.parse.quote(query)}",
+        ]
 
-        if r.status_code == 404:
-            # buildId stale — reset and retry once
-            logger.info("Woolworths: buildId stale, refreshing")
-            self._build_id = None
-            build_id = await self._get_build_id()
-            target = (
-                f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
-                f"?searchTerm={urllib.parse.quote(query)}"
-            )
+        r = None
+        for target in candidates:
+            logger.info("Woolworths Next.js GET candidate: %s", target)
             r = await client.get(_scraperapi_url(target))
-            logger.info("Woolworths Next.js retry: status=%d len=%d", r.status_code, len(r.text))
+            logger.info("Woolworths Next.js resp: status=%d len=%d ct=%s",
+                        r.status_code, len(r.text), r.headers.get("content-type", ""))
+            # Stop if we get JSON back (not HTML)
+            ct = r.headers.get("content-type", "")
+            if r.status_code == 200 and "json" in ct:
+                break
+            if r.status_code == 404:
+                continue  # try next candidate
 
+        if r is None:
+            raise RuntimeError("Woolworths: no candidates to try")
+
+        # If all candidates failed, raise the last status
         r.raise_for_status()
 
         try:
