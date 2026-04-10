@@ -80,12 +80,15 @@ async def health_check():
 @app.get("/debug/woolworths")
 async def debug_woolworths(q: str = "milk"):
     """Debug endpoint: test Woolworths scraper and return raw response details."""
-    import httpx as _httpx
-    from app.config import get_scraperapi_key
+    import traceback as _tb
     from app.scrapers.woolworths import WoolworthsScraper, _scraperapi_url, WOW_HOME
 
     scraper = WoolworthsScraper()
     debug_info = {}
+    try:
+        from app.config import get_scraperapi_key
+    except Exception:
+        get_scraperapi_key = lambda: ""
 
     try:
         # 1. Get build ID

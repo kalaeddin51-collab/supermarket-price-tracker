@@ -107,7 +107,7 @@ class WoolworthsScraper(BaseScraper):
         )
 
         captured: list[dict] = []
-        api_response_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        api_response_future: asyncio.Future = asyncio.get_running_loop().create_future()
 
         logger.info("Woolworths Playwright: launching browser for %r", query)
 
@@ -258,7 +258,7 @@ class WoolworthsScraper(BaseScraper):
             raise RuntimeError("Playwright not installed")
 
         product_url = f"{WOW_HOME}/shop/productdetails/{external_id}"
-        api_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        api_future: asyncio.Future = asyncio.get_running_loop().create_future()
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
