@@ -62,12 +62,32 @@ templates = Jinja2Templates(directory="app/templates")
 @app.get("/health")
 async def health_check():
     """Quick health/debug endpoint."""
+    try:
+        from curl_cffi.requests import AsyncSession as _CurlSession
+        curl_ok = True
+    except ImportError:
+        curl_ok = False
     return {
         "status": "ok",
         "scraperapi_configured": bool(get_scraperapi_key()),
         "scraperapi_key_prefix": get_scraperapi_key()[:6] + "..." if get_scraperapi_key() else "",
         "proxy_configured": bool(settings.scraper_proxy),
+        "curl_cffi_available": curl_ok,
     }
+
+
+@app.get("/debug/woolworths")
+async def debug_woolworths(q: str = "milk"):
+    """Debug endpoint: test Woolworths scraper and return raw error."""
+    from app.scrapers.woolworths import WoolworthsScraper
+    scraper = WoolworthsScraper()
+    try:
+        results = await scraper.search(q, limit=5)
+        await scraper.close()
+        return {"status": "ok", "count": len(results), "products": [r.name for r in results[:3]]}
+    except Exception as exc:
+        import traceback
+        return {"status": "error", "error": str(exc), "traceback": traceback.format_exc()[-1000:]}
 
 
 def hash_password(password: str) -> str:
