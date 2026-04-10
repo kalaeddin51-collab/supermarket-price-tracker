@@ -121,6 +121,7 @@ class WoolworthsScraper(BaseScraper):
             await self._httpx_client.aclose()
 
     def _build_payload(self, query: str, limit: int) -> dict:
+        # Minimal payload — avoid any optional fields that might cause 500
         return {
             "Filters": [],
             "IsSpecial": False,
@@ -129,16 +130,11 @@ class WoolworthsScraper(BaseScraper):
             "PageSize": limit,
             "SearchTerm": query,
             "SortType": "TraderRelevance",
-            "token": "",
-            "gpBoost": 0,
-            "CategoryVersion": "v2",
         }
 
     def _build_url(self) -> str:
-        url = SEARCH_API
-        if settings.woolworths_store_id:
-            url += f"?store_id={settings.woolworths_store_id}"
-        return url
+        # No store_id — using one may cause 500 on proxied requests
+        return SEARCH_API
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
         url = self._build_url()
