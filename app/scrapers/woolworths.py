@@ -1,14 +1,18 @@
 """
-Woolworths scraper — mobile app API approach.
+Woolworths scraper — Next.js /_next/data/ JSON endpoint (mirrors Coles approach).
 
-The Woolworths mobile app uses the same backend API (/apis/ui/Search/products)
-but with iOS/Android app headers. Mobile apps bypass Akamai's JavaScript
-challenge requirement since native apps don't run browser JavaScript.
+Woolworths uses Next.js. Their search page /shop/search/products has a
+corresponding JSON data endpoint at:
+  GET /_next/data/{BUILD_ID}/shop/search/products.json?searchTerm={q}
 
-Falls back to direct POST (no proxy) if no ScraperAPI key.
+This is a pure GET JSON endpoint — no session cookies, no bot check.
+We fetch the buildId from a lightweight probe page first.
+
+Fallback (no ScraperAPI): POST to internal /apis/ui/Search/products directly.
 """
 import json as _json
 import logging
+import re
 import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
@@ -18,63 +22,25 @@ logger = logging.getLogger(__name__)
 
 WOW_HOME = "https://www.woolworths.com.au"
 SEARCH_API = f"{WOW_HOME}/apis/ui/Search/products"
-DETAIL_API = f"{WOW_HOME}/api/v3/ui/schemaorg/product"
 
-# Mobile app headers — bypasses Akamai web bot detection
-MOBILE_HEADERS = {
-    "User-Agent": "Woolworths/10.6.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X)",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-AU",
-    "Content-Type": "application/json",
-    "Origin": WOW_HOME,
-    "Referer": f"{WOW_HOME}/",
-    "x-requested-with": "au.com.woolworths",
-    "wow-app-info": "platform=ios,version=10.6.0",
-}
-
-# Also try desktop browser headers as fallback
-BROWSER_HEADERS = {
+HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/json, text/plain, */*",
+    "Accept": "application/json, text/html, */*",
     "Accept-Language": "en-AU,en;q=0.9",
-    "Content-Type": "application/json",
-    "Origin": WOW_HOME,
-    "Referer": f"{WOW_HOME}/shop/search/products?searchTerm=milk",
-    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "request-id": "|abc123.def456",
 }
-
-# Try to import curl_cffi for Chrome TLS fingerprint impersonation
-try:
-    from curl_cffi.requests import AsyncSession as CurlSession
-    _HAS_CURL_CFFI = True
-except ImportError:
-    _HAS_CURL_CFFI = False
-    logger.warning("curl_cffi not available")
-
-
-def _scraperapi_proxy_url() -> str:
-    key = get_scraperapi_key()
-    return f"http://scraperapi.country_code=au:{key}@proxy-server.scraperapi.com:8001"
 
 
 def _scraperapi_url(target_url: str) -> str:
-    """URL rewriting mode for simple GET requests."""
+    """GET-based URL rewriting — works for any GET endpoint."""
     return (
         f"http://api.scraperapi.com"
         f"?api_key={get_scraperapi_key()}"
         f"&url={urllib.parse.quote(target_url, safe='')}"
         f"&country_code=au"
-        f"&keep_headers=true"
     )
 
 
@@ -83,12 +49,12 @@ def _use_scraperapi() -> bool:
 
 
 def _parse_product(item: dict) -> SearchResult | None:
-    stockcode = str(item.get("Stockcode", ""))
+    stockcode = str(item.get("Stockcode", "") or item.get("stockcode", ""))
     if not stockcode:
         return None
-    name = item.get("Name", "")
-    price = item.get("Price") or item.get("InstorePrice")
-    cup_string = item.get("CupString")
+    name = item.get("Name", "") or item.get("name", "")
+    price = item.get("Price") or item.get("price") or item.get("InstorePrice")
+    cup_string = item.get("CupString") or item.get("cupString")
     image = f"https://cdn0.woolworths.media/content/wowproductimages/large/{stockcode}.jpg"
     return SearchResult(
         external_id=stockcode,
@@ -105,70 +71,149 @@ class WoolworthsScraper(BaseScraper):
     store_slug = "woolworths"
 
     def __init__(self):
-        self._httpx_client: httpx.AsyncClient | None = None
+        self._client: httpx.AsyncClient | None = None
+        self._build_id: str | None = None
 
-    async def _get_httpx_client(self) -> httpx.AsyncClient:
-        if self._httpx_client is None or self._httpx_client.is_closed:
-            self._httpx_client = httpx.AsyncClient(
-                headers=MOBILE_HEADERS,
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=HEADERS,
                 timeout=60,
                 follow_redirects=True,
             )
-        return self._httpx_client
+        return self._client
 
     async def close(self):
-        if self._httpx_client and not self._httpx_client.is_closed:
-            await self._httpx_client.aclose()
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
-    def _build_payload(self, query: str, limit: int) -> dict:
-        # Minimal payload — avoid any optional fields that might cause 500
-        return {
-            "Filters": [],
-            "IsSpecial": False,
-            "Location": f"/shop/search/products?searchTerm={query}",
-            "PageNumber": 1,
-            "PageSize": limit,
-            "SearchTerm": query,
-            "SortType": "TraderRelevance",
-        }
+    async def _get_build_id(self) -> str:
+        """Extract Next.js buildId from a lightweight Woolworths page."""
+        if self._build_id:
+            return self._build_id
 
-    def _build_url(self) -> str:
-        # No store_id — using one may cause 500 on proxied requests
-        return SEARCH_API
+        client = await self._get_client()
+
+        # Use a non-existent API path — returns a Next.js 404 page with __NEXT_DATA__
+        # This is the same trick used for Coles and doesn't trigger Akamai
+        probe_url = f"{WOW_HOME}/api/__build_probe"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(probe_url))
+        else:
+            r = await client.get(probe_url)
+
+        logger.info("Woolworths build probe: status=%d len=%d", r.status_code, len(r.text))
+
+        # Try __NEXT_DATA__ JSON block
+        match = re.search(
+            r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+            r.text, re.DOTALL
+        )
+        if match:
+            try:
+                data = _json.loads(match.group(1))
+                self._build_id = data.get("buildId")
+            except Exception:
+                pass
+
+        # Fallback: extract from _next/static chunk path
+        if not self._build_id:
+            bm = re.search(r'/_next/static/([a-zA-Z0-9_-]+)/_buildManifest', r.text)
+            if bm:
+                self._build_id = bm.group(1)
+
+        if not self._build_id:
+            logger.warning("Woolworths: could not find buildId in probe (len=%d), snippet: %s",
+                           len(r.text), r.text[:200])
+            raise RuntimeError("Could not determine Woolworths Next.js buildId")
+
+        logger.info("Woolworths buildId: %s", self._build_id)
+        return self._build_id
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        url = self._build_url()
-        payload = self._build_payload(query, limit)
+        if _use_scraperapi():
+            return await self._search_nextjs(query, limit)
+        return await self._search_direct_api(query, limit)
 
-        # Strategy 1: curl_cffi with mobile headers (bypasses Akamai JS challenge)
-        if _HAS_CURL_CFFI:
-            try:
-                data = await self._post_with_curl(url, payload, MOBILE_HEADERS)
-                products_raw = []
-                for bundle in data.get("Products", []):
+    async def _search_nextjs(self, query: str, limit: int) -> list[SearchResult]:
+        """GET Next.js data endpoint through ScraperAPI — pure JSON, no bot check."""
+        client = await self._get_client()
+        build_id = await self._get_build_id()
+
+        target = (
+            f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
+            f"?searchTerm={urllib.parse.quote(query)}"
+        )
+        logger.info("Woolworths Next.js GET: %s", target)
+        r = await client.get(_scraperapi_url(target))
+        logger.info("Woolworths Next.js resp: status=%d len=%d", r.status_code, len(r.text))
+
+        if r.status_code == 404:
+            # buildId stale — reset and retry once
+            logger.info("Woolworths: buildId stale, refreshing")
+            self._build_id = None
+            build_id = await self._get_build_id()
+            target = (
+                f"{WOW_HOME}/_next/data/{build_id}/shop/search/products.json"
+                f"?searchTerm={urllib.parse.quote(query)}"
+            )
+            r = await client.get(_scraperapi_url(target))
+            logger.info("Woolworths Next.js retry: status=%d len=%d", r.status_code, len(r.text))
+
+        r.raise_for_status()
+
+        try:
+            data = r.json()
+        except Exception:
+            logger.warning("Woolworths Next.js non-JSON: %s", r.text[:300])
+            return []
+
+        page_props = data.get("pageProps", {}) or {}
+
+        # Search for products in the page props
+        products_raw = []
+
+        # Try searchResults.Products bundles
+        sr = page_props.get("searchResults") or page_props.get("search") or {}
+        if isinstance(sr, dict):
+            for bundle in sr.get("Products", []):
+                if isinstance(bundle, dict):
                     products_raw.extend(bundle.get("Products", []))
-                if products_raw:
-                    logger.info("Woolworths mobile API: %d products for %r", len(products_raw), query)
-                    return [p for p in (_parse_product(x) for x in products_raw) if p]
-                logger.info("Woolworths mobile API returned 0 — trying browser headers")
-            except Exception as exc:
-                logger.warning("Woolworths mobile headers failed (%s) — trying browser headers", exc)
 
-            # Strategy 2: curl_cffi with browser headers
-            try:
-                data = await self._post_with_curl(url, payload, BROWSER_HEADERS)
-                products_raw = []
-                for bundle in data.get("Products", []):
-                    products_raw.extend(bundle.get("Products", []))
-                logger.info("Woolworths browser headers: %d products for %r", len(products_raw), query)
-                return [p for p in (_parse_product(x) for x in products_raw) if p]
-            except Exception as exc:
-                logger.warning("Woolworths browser headers also failed: %s", exc)
-                raise
+        # Try direct products key
+        if not products_raw:
+            for key in ("products", "Products", "items"):
+                if page_props.get(key):
+                    products_raw = page_props[key]
+                    break
 
-        # Fallback: plain httpx (may be blocked)
-        client = await self._get_httpx_client()
-        resp = await client.post(url, json=payload)
+        logger.info("Woolworths Next.js: %d raw products for %r", len(products_raw), query)
+        if not products_raw:
+            logger.debug("Woolworths page_props keys: %s", list(page_props.keys()))
+
+        results = []
+        for item in products_raw:
+            parsed = _parse_product(item)
+            if parsed:
+                results.append(parsed)
+            if len(results) >= limit:
+                break
+        return results
+
+    async def _search_direct_api(self, query: str, limit: int) -> list[SearchResult]:
+        """POST to internal API directly (only works on residential IPs, not cloud)."""
+        client = await self._get_client()
+        payload = {
+            "Filters": [], "IsSpecial": False,
+            "Location": f"/shop/search/products?searchTerm={query}",
+            "PageNumber": 1, "PageSize": limit,
+            "SearchTerm": query, "SortType": "TraderRelevance",
+        }
+        resp = await client.post(
+            SEARCH_API, json=payload,
+            headers={**HEADERS, "Content-Type": "application/json",
+                     "Origin": WOW_HOME, "request-id": "|abc123.def456"},
+        )
         resp.raise_for_status()
         data = resp.json()
         products_raw = []
@@ -176,51 +221,20 @@ class WoolworthsScraper(BaseScraper):
             products_raw.extend(bundle.get("Products", []))
         return [p for p in (_parse_product(x) for x in products_raw) if p]
 
-    async def _post_with_curl(self, url: str, payload: dict, headers: dict) -> dict:
-        """POST using curl_cffi + ScraperAPI proxy."""
-        proxies = None
-        if _use_scraperapi():
-            proxy_url = _scraperapi_proxy_url()
-            proxies = {"https": proxy_url, "http": proxy_url}
-
-        async with CurlSession(impersonate="chrome124") as session:
-            resp = await session.post(
-                url,
-                json=payload,
-                headers=headers,
-                proxies=proxies,
-                timeout=60,
-                verify=False,
-            )
-
-        logger.info("Woolworths curl POST: status=%d len=%d headers_ua=%s",
-                    resp.status_code, len(resp.text), headers.get("User-Agent", "")[:40])
-        if resp.status_code != 200:
-            logger.warning("Woolworths non-200 body: %s", resp.text[:300])
-        resp.raise_for_status()
-        return resp.json()
-
     async def fetch_price(self, external_id: str, url: str) -> PriceResult:
-        target = f"{DETAIL_API}/{external_id}"
-
-        if _HAS_CURL_CFFI and _use_scraperapi():
-            proxy_url = _scraperapi_proxy_url()
-            proxies = {"https": proxy_url, "http": proxy_url}
-            async with CurlSession(impersonate="chrome124") as session:
-                resp = await session.get(target, headers=BROWSER_HEADERS,
-                                         proxies=proxies, timeout=60, verify=False)
+        client = await self._get_client()
+        target = f"{WOW_HOME}/api/v3/ui/schemaorg/product/{external_id}"
+        if _use_scraperapi():
+            r = await client.get(_scraperapi_url(target))
         else:
-            client = await self._get_httpx_client()
-            resp = await client.get(target)
-
-        resp.raise_for_status()
-        data = resp.json()
+            r = await client.get(target)
+        r.raise_for_status()
+        data = r.json()
 
         offers = data.get("offers") or {}
         price = offers.get("price")
         availability = offers.get("availability", "")
         in_stock = "InStock" in availability if availability else True
-
         price_specs = offers.get("priceSpecification") or []
         was_price = None
         on_special = False
@@ -232,16 +246,11 @@ class WoolworthsScraper(BaseScraper):
 
         name = data.get("name", "")
         image = data.get("image", f"https://cdn0.woolworths.media/content/wowproductimages/large/{external_id}.jpg")
-
         return PriceResult(
-            external_id=external_id,
-            name=name,
+            external_id=external_id, name=name,
             price=float(price) if price is not None else None,
             was_price=float(was_price) if was_price is not None else None,
-            url=url,
-            store=self.store_slug,
-            in_stock=in_stock,
-            on_special=on_special,
-            image_url=image,
-            unit=None,
+            url=url, store=self.store_slug,
+            in_stock=in_stock, on_special=on_special,
+            image_url=image, unit=None,
         )

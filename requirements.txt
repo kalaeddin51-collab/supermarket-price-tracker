@@ -10,7 +10,6 @@ alembic==1.13.3
 
 # HTTP / scraping
 httpx==0.27.2
-curl_cffi==0.7.4   # Chrome TLS fingerprint impersonation for Woolworths/Akamai bypass
 # playwright==1.47.0  # not used in production; install locally if needed for testing
 beautifulsoup4==4.12.3
 lxml==5.3.0
