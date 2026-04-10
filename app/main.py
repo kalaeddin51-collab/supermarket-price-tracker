@@ -79,18 +79,66 @@ async def health_check():
 
 @app.get("/debug/woolworths")
 async def debug_woolworths(q: str = "milk"):
-    """Debug endpoint: test Woolworths scraper."""
+    """Debug endpoint: test Woolworths Playwright scraper with full diagnostics."""
     import traceback as _tb
+    import re as _re
+
     try:
-        from app.scrapers.woolworths import WoolworthsScraper
-        scraper = WoolworthsScraper()
-        results = await scraper.search(q, limit=5)
-        await scraper.close()
-        return JSONResponse(content={
-            "status": "ok",
-            "count": len(results),
-            "products": [{"name": r.name, "price": r.price} for r in results[:3]],
-        })
+        from playwright.async_api import async_playwright
+
+        search_url = f"https://www.woolworths.com.au/shop/search/products?searchTerm={q}"
+        diag: dict = {"search_url": search_url}
+
+        launch_args = [
+            "--no-sandbox", "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage", "--disable-gpu",
+            "--no-first-run", "--disable-extensions",
+        ]
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=launch_args)
+            context = await browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                locale="en-AU",
+                timezone_id="Australia/Sydney",
+                viewport={"width": 1280, "height": 800},
+            )
+            page = await context.new_page()
+
+            # Collect all network responses
+            responses_seen = []
+            page.on("response", lambda r: responses_seen.append({
+                "url": r.url[:120], "status": r.status
+            }))
+
+            await page.goto(search_url, wait_until="domcontentloaded", timeout=35_000)
+            diag["final_url"] = page.url
+            diag["title"] = await page.title()
+
+            # Wait a bit for AJAX calls
+            import asyncio as _asyncio
+            await _asyncio.sleep(5)
+
+            # Check DOM content
+            content = await page.content()
+            diag["page_len"] = len(content)
+            diag["has_next_data"] = "__NEXT_DATA__" in content
+            diag["has_akamai"] = "akamai" in content.lower() or "_abck" in content.lower()
+
+            # Network responses seen
+            api_calls = [r for r in responses_seen if "/apis/ui/" in r["url"]]
+            diag["api_calls_seen"] = api_calls[:10]
+            diag["total_responses"] = len(responses_seen)
+
+            await context.close()
+            await browser.close()
+
+        return JSONResponse(content={"status": "ok", **diag})
+
     except Exception as exc:
         return JSONResponse(content={
             "status": "error",
