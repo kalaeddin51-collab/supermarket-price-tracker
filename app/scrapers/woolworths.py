@@ -120,9 +120,16 @@ class WoolworthsScraper(BaseScraper):
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--no-first-run",
-                    "--no-zygote",
-                    "--single-process",   # lower memory in containers
                     "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--metrics-recording-only",
+                    "--mute-audio",
+                    "--no-default-browser-check",
+                    "--safebrowsing-disable-auto-update",
+                    "--window-size=1280,800",
                 ],
             )
             context = await browser.new_context(
@@ -258,7 +265,7 @@ class WoolworthsScraper(BaseScraper):
                 headless=True,
                 args=["--no-sandbox", "--disable-setuid-sandbox",
                       "--disable-dev-shm-usage", "--disable-gpu",
-                      "--single-process", "--no-zygote"],
+                      "--disable-extensions"],
             )
             context = await browser.new_context(
                 user_agent=HEADERS["User-Agent"],

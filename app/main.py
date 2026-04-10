@@ -122,11 +122,17 @@ async def debug_woolworths(q: str = "milk"):
         return {"status": "ok", **debug_info}
 
     except Exception as exc:
-        import traceback
-        await scraper.close()
-        return {"status": "error", "error": str(exc),
-                "debug": debug_info,
-                "traceback": traceback.format_exc()[-1500:]}
+        import traceback as _tb
+        try:
+            await scraper.close()
+        except Exception:
+            pass
+        return JSONResponse(
+            status_code=200,  # return 200 so the response body is readable
+            content={"status": "error", "error": str(exc),
+                     "debug": debug_info,
+                     "traceback": _tb.format_exc()[-2000:]}
+        )
 
 
 def hash_password(password: str) -> str:
