@@ -718,34 +718,37 @@ async def search_page(request: Request, db: Session = Depends(get_db), q: str = 
         if pref and pref.suburb:
             user_suburb = pref.suburb
 
-    # ── Trending Drops: up to 6 products currently on special or with was_price > price ──
-    from sqlalchemy import func
-    # Get the latest price record per product using a subquery
-    latest_id_subq = (
-        db.query(func.max(models.PriceRecord.id))
-        .group_by(models.PriceRecord.product_id)
-        .subquery()
-    )
-    trending_records = (
-        db.query(models.PriceRecord, models.Product)
-        .join(models.Product, models.PriceRecord.product_id == models.Product.id)
-        .filter(models.PriceRecord.id.in_(latest_id_subq.select()))
-        .filter(
-            (models.PriceRecord.on_special == True) |
-            (
-                (models.PriceRecord.was_price != None) &
-                (models.PriceRecord.was_price > models.PriceRecord.price)
-            )
+    # ── Trending Drops: up to 6 products currently on special ──
+    try:
+        from sqlalchemy import func, select as sa_select
+        # Subquery: max PriceRecord.id per product (= latest record)
+        latest_id_subq = (
+            sa_select(func.max(models.PriceRecord.id))
+            .group_by(models.PriceRecord.product_id)
+            .scalar_subquery()
         )
-        .filter(models.PriceRecord.price != None)
-        .order_by(models.PriceRecord.scraped_at.desc())
-        .limit(6)
-        .all()
-    )
-    trending = [
-        {"product": prod, "latest": rec}
-        for rec, prod in trending_records
-    ]
+        trending_records = (
+            db.query(models.PriceRecord, models.Product)
+            .join(models.Product, models.PriceRecord.product_id == models.Product.id)
+            .filter(models.PriceRecord.id.in_(latest_id_subq))
+            .filter(
+                (models.PriceRecord.on_special == True) |
+                (
+                    (models.PriceRecord.was_price != None) &
+                    (models.PriceRecord.was_price > models.PriceRecord.price)
+                )
+            )
+            .filter(models.PriceRecord.price != None)
+            .order_by(models.PriceRecord.scraped_at.desc())
+            .limit(6)
+            .all()
+        )
+        trending = [
+            {"product": prod, "latest": rec}
+            for rec, prod in trending_records
+        ]
+    except Exception:
+        trending = []
 
     return templates.TemplateResponse(request, "search.html", {
         "query": q,
