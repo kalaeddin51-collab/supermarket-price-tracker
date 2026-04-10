@@ -6,10 +6,13 @@ Working endpoints:
   GET  https://www.woolworths.com.au/apis/ui/product/detail?stockcode={id} — product detail
 """
 import json as _json
+import logging
 import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
 from app.config import settings, get_scraperapi_key
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.woolworths.com.au/apis/ui"
 
@@ -52,9 +55,15 @@ def _parse_product(item: dict, store: str = "woolworths") -> SearchResult:
     )
 
 
-def _scraperapi_url(target_url: str) -> str:
-    """Wrap a target URL with ScraperAPI if a key is configured."""
-    return f"http://api.scraperapi.com?api_key={get_scraperapi_key()}&url={urllib.parse.quote(target_url, safe='')}"
+def _scraperapi_url(target_url: str, country: str = "au") -> str:
+    """Wrap a target URL with ScraperAPI using Australian residential IPs."""
+    return (
+        f"http://api.scraperapi.com"
+        f"?api_key={get_scraperapi_key()}"
+        f"&url={urllib.parse.quote(target_url, safe='')}"
+        f"&country_code={country}"
+        f"&keep_headers=true"
+    )
 
 
 def _use_scraperapi() -> bool:
@@ -105,12 +114,20 @@ class WoolworthsScraper(BaseScraper):
         params = {"store_id": settings.woolworths_store_id} if settings.woolworths_store_id else {}
 
         if _use_scraperapi():
-            # ScraperAPI URL rewriting mode — send POST body via GET with render=false
+            # ScraperAPI URL rewriting: POST to ScraperAPI which forwards to Woolworths
             target = f"{BASE_URL}/Search/products"
             if params:
                 target += "?" + urllib.parse.urlencode(params)
             api_url = _scraperapi_url(target)
-            resp = await client.post(api_url, json=payload)
+            logger.info("Woolworths search via ScraperAPI: %s", api_url[:80])
+            resp = await client.post(
+                api_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            logger.info("Woolworths ScraperAPI response: %s (len=%d)", resp.status_code, len(resp.text))
+            if resp.status_code != 200:
+                logger.warning("Woolworths ScraperAPI error body: %s", resp.text[:500])
         else:
             resp = await client.post(
                 f"{BASE_URL}/Search/products",

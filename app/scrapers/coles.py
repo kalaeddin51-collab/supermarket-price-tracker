@@ -32,9 +32,15 @@ DEFAULT_HEADERS = {
 }
 
 
-def _scraperapi_url(target_url: str) -> str:
-    """Wrap a target URL with ScraperAPI if a key is configured."""
-    return f"http://api.scraperapi.com?api_key={get_scraperapi_key()}&url={urllib.parse.quote(target_url, safe='')}"
+def _scraperapi_url(target_url: str, country: str = "au") -> str:
+    """Wrap a target URL with ScraperAPI using Australian residential IPs."""
+    return (
+        f"http://api.scraperapi.com"
+        f"?api_key={get_scraperapi_key()}"
+        f"&url={urllib.parse.quote(target_url, safe='')}"
+        f"&country_code={country}"
+        f"&keep_headers=true"
+    )
 
 
 def _use_scraperapi() -> bool:
