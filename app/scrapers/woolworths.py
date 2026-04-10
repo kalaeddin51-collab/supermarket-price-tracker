@@ -134,27 +134,51 @@ class WoolworthsScraper(BaseScraper):
         return [p for p in (_parse_product(x) for x in products_raw) if p]
 
     async def _post_curl(self, url: str, payload: dict) -> dict:
-        """POST using curl_cffi with Chrome TLS fingerprint + ScraperAPI residential proxy."""
+        """POST using curl_cffi with Chrome TLS fingerprint + ScraperAPI residential proxy.
+
+        We must first GET the homepage to establish session cookies, then POST the
+        search API. Both requests go through the same curl_cffi session so cookies
+        are preserved automatically.
+        """
         proxies = None
         if _use_scraperapi():
             proxy_url = _scraperapi_proxy_url()
             proxies = {"https": proxy_url, "http": proxy_url}
-            logger.info("Woolworths: curl_cffi POST via ScraperAPI proxy for %s", url[:60])
+            logger.info("Woolworths: curl_cffi via ScraperAPI proxy (session warm-up + POST)")
         else:
-            logger.info("Woolworths: curl_cffi POST direct for %s", url[:60])
+            logger.info("Woolworths: curl_cffi direct POST")
 
         async with CurlSession(impersonate="chrome124") as session:
+            # Step 1: warm up session cookies by visiting a lightweight page
+            try:
+                warmup_headers = {k: v for k, v in BROWSER_HEADERS.items()
+                                  if k != "Content-Type"}
+                warmup_headers["Accept"] = "text/html,application/xhtml+xml,*/*;q=0.8"
+                warmup = await session.get(
+                    WOW_HOME,
+                    headers=warmup_headers,
+                    proxies=proxies,
+                    timeout=30,
+                    verify=False,
+                )
+                logger.info("Woolworths warmup: status=%d cookies=%s",
+                            warmup.status_code, list(session.cookies.keys())[:5])
+            except Exception as exc:
+                logger.warning("Woolworths warmup failed (continuing anyway): %s", exc)
+
+            # Step 2: POST the search with the established cookies
             resp = await session.post(
                 url,
                 json=payload,
                 headers=BROWSER_HEADERS,
                 proxies=proxies,
                 timeout=60,
-                verify=False,  # ScraperAPI proxy uses its own cert
+                verify=False,
             )
-        logger.info("Woolworths curl_cffi response: status=%d len=%d", resp.status_code, len(resp.text))
+
+        logger.info("Woolworths search response: status=%d len=%d", resp.status_code, len(resp.text))
         if resp.status_code != 200:
-            logger.warning("Woolworths non-200 body: %s", resp.text[:400])
+            logger.warning("Woolworths non-200 body: %s", resp.text[:500])
         resp.raise_for_status()
         return resp.json()
 
