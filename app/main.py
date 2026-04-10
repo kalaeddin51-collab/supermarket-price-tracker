@@ -63,16 +63,17 @@ templates = Jinja2Templates(directory="app/templates")
 async def health_check():
     """Quick health/debug endpoint."""
     try:
-        from curl_cffi.requests import AsyncSession as _CurlSession
-        curl_ok = True
+        import playwright  # noqa
+        playwright_ok = True
     except ImportError:
-        curl_ok = False
+        playwright_ok = False
     return {
         "status": "ok",
         "scraperapi_configured": bool(get_scraperapi_key()),
         "scraperapi_key_prefix": get_scraperapi_key()[:6] + "..." if get_scraperapi_key() else "",
         "proxy_configured": bool(settings.scraper_proxy),
-        "curl_cffi_available": curl_ok,
+        "playwright_available": playwright_ok,
+        "use_playwright": settings.use_playwright,
     }
 
 
