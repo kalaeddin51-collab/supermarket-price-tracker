@@ -43,6 +43,71 @@ def _names_similar(name_a: str, name_b: str, threshold: float = 0.6) -> bool:
     return overlap >= threshold
 
 
+def _group_search_results(all_results: list) -> list[dict]:
+    """Group search results by similar product name for cross-store price comparison.
+
+    Returns a list of group dicts, each containing:
+      canonical   - display name (longest/most descriptive name in the group)
+      image_url   - product image from the best result
+      brand       - brand string
+      entries     - list of SearchResult objects, sorted cheapest first
+      min_price   - lowest price in the group (or None)
+      max_price   - highest price in the group (or None)
+      savings     - max_price - min_price (0 if only one price)
+      best_store  - store slug with the lowest price
+    """
+    groups: list[dict] = []
+
+    for r in all_results:
+        placed = False
+        # Use base name (size-stripped) for comparison so "Milk 2L" and "Milk 3L" stay separate
+        r_base = _base_name(r.name)
+        for g in groups:
+            if _names_similar(g["_base"], r_base, threshold=0.60):
+                # Don't add duplicate store entries — keep cheapest per store
+                existing_stores = {e.store for e in g["entries"]}
+                if r.store in existing_stores:
+                    # Replace if this one is cheaper
+                    for i, e in enumerate(g["entries"]):
+                        if e.store == r.store:
+                            r_price = r.price if r.price is not None else float("inf")
+                            e_price = e.price if e.price is not None else float("inf")
+                            if r_price < e_price:
+                                g["entries"][i] = r
+                            break
+                else:
+                    g["entries"].append(r)
+                # Prefer longer (more descriptive) name as canonical
+                if len(r.name) > len(g["canonical"]):
+                    g["canonical"] = r.name
+                    g["brand"] = r._brand
+                # Prefer image from a real URL (non-placeholder)
+                if not g["image_url"] and r.image_url:
+                    g["image_url"] = r.image_url
+                placed = True
+                break
+
+        if not placed:
+            groups.append({
+                "_base":     r_base,
+                "canonical": r.name,
+                "image_url": r.image_url,
+                "brand":     r._brand,
+                "entries":   [r],
+            })
+
+    # Finalise each group: sort entries, compute savings
+    for g in groups:
+        g["entries"].sort(key=lambda r: r.price if r.price is not None else float("inf"))
+        priced = [r for r in g["entries"] if r.price is not None]
+        g["min_price"]  = priced[0].price  if priced else None
+        g["max_price"]  = priced[-1].price if priced else None
+        g["savings"]    = round(g["max_price"] - g["min_price"], 2) if len(priced) > 1 else 0
+        g["best_store"] = priced[0].store  if priced else None
+
+    return groups
+
+
 def _check_rate_limit(ip: str) -> bool:
     """Return True if IP is locked out."""
     now = datetime.utcnow()
@@ -1045,6 +1110,7 @@ async def search_results(
     sort: Optional[str] = None,
     brand: str = "",
     fresh: str = "",
+    view: str = "compare",
 ):
     if not q or len(q) < 2:
         return HTMLResponse("")
@@ -1149,32 +1215,56 @@ async def search_results(
     if not sort:
         all_results.sort(key=lambda r: (-r._relevance, r.price if r.price is not None else float("inf")))
 
-    # Paginate — 25 per page
+    # Build human-readable labels for failed stores
+    failed_labels = [STORE_LABELS.get(s, s) for s in failed_stores]
+
+    # Build grouped results for compare view (group by similar product name)
+    # Grouping is done on the FULL filtered+sorted list before pagination
+    grouped_results = _group_search_results(all_results)
+
+    # Paginate flat results
     page_size = 25
     total     = len(all_results)
     start     = page * page_size
     end       = start + page_size
     page_results = all_results[start:end]
 
-    # Build human-readable labels for failed stores
-    failed_labels = [STORE_LABELS.get(s, s) for s in failed_stores]
+    # Paginate grouped results (groups count, not individual items)
+    group_page_size = 20
+    group_total     = len(grouped_results)
+    group_start     = page * group_page_size
+    group_end       = group_start + group_page_size
+    page_groups     = grouped_results[group_start:group_end]
+
+    # For pagination controls use the active view's count
+    if view == "compare":
+        display_total   = group_total
+        display_has_prev = page > 0
+        display_has_next = group_end < group_total
+    else:
+        display_total   = total
+        display_has_prev = page > 0
+        display_has_next = end < total
 
     return templates.TemplateResponse(request, "partials/search_results.html", {
         "results":         page_results,
+        "grouped_results": page_groups,
         "all_brands":      all_brands,
         "selected_brands": selected_brands,
         "query":     q,
         "store":     store,
         "page":      page,
         "page_size": page_size,
-        "total":     total,
-        "has_prev":  page > 0,
-        "has_next":  end < total,
+        "total":     display_total,
+        "has_prev":  display_has_prev,
+        "has_next":  display_has_next,
         "price_min": price_min or "",
         "price_max": price_max or "",
         "sort":      sort or "",
         "brand":          brand or "",
+        "fresh":          fresh or "",
         "failed_stores":  failed_labels,
+        "view":           view,
     })
 
 
