@@ -78,36 +78,37 @@
 
 {% if enriched %}
 
-  <!-- ── Price drops section ──────────────────────────────────────────── -->
+  <!-- ── Price drops ──────────────────────────────────────────────────── -->
   {% set drops = enriched | selectattr('drop_pct') | list | sort(attribute='drop_pct') %}
   {% set real_drops = [] %}
   {% for e in drops %}{% if e.drop_pct and e.drop_pct > 0 %}{% set _ = real_drops.append(e) %}{% endif %}{% endfor %}
 
   {% if real_drops %}
   <section class="mb-7">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider section-header mb-3">
-      Recent Price Drops
-    </h2>
+    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Recent Price Drops</h2>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for e in real_drops[:6] %}
       <a href="/product/{{ e.product.id }}"
-         class="card-lift bg-white rounded-2xl border border-emerald-100 p-4 flex gap-3 group">
-        <div class="w-14 h-14 rounded-xl bg-gray-50 shrink-0 flex items-center justify-center overflow-hidden">
-          {% if e.product.image_url %}
-          <img src="{{ e.product.image_url }}" alt="" class="w-full h-full object-contain">
-          {% else %}
-          <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg>
-          {% endif %}
-        </div>
-        <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold text-gray-800 truncate group-hover:text-brand transition-colors">{{ e.product.name }}</div>
-          <span class="store-pill mt-1 inline-block" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
-          <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-xl font-bold text-gray-900">${{ "%.2f"|format(e.latest.price) }}</span>
-            {% if e.prev and e.prev.price %}
-            <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(e.prev.price) }}</span>
+         class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-200 overflow-hidden flex group relative">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400"></div>
+        <div class="flex gap-3 p-4 pl-5 flex-1">
+          <div class="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
+            {% if e.product.image_url %}
+            <img src="{{ e.product.image_url }}" alt="" class="w-full h-full object-contain p-1">
+            {% else %}
+            <svg class="w-6 h-6 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             {% endif %}
-            <span class="badge-drop">↓{{ e.drop_pct }}%</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-brand transition-colors">{{ e.product.name }}</div>
+            <span class="store-pill mt-1.5 inline-block text-[10px]" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
+            <div class="flex items-baseline gap-2 mt-2">
+              <span class="text-lg font-extrabold text-gray-900">${{ "%.2f"|format(e.latest.price) }}</span>
+              {% if e.prev and e.prev.price %}
+              <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(e.prev.price) }}</span>
+              {% endif %}
+              <span class="badge-drop text-[10px]">↓{{ e.drop_pct }}%</span>
+            </div>
           </div>
         </div>
       </a>
@@ -116,40 +117,38 @@
   </section>
   {% endif %}
 
-  <!-- ── Specials section ─────────────────────────────────────────────── -->
+  <!-- ── Specials ──────────────────────────────────────────────────────── -->
   {% if specials %}
   <section class="mb-7">
     <div class="flex items-center gap-2 mb-3">
-      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider section-header">
-        On Special Now
-      </h2>
+      <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">On Special Now</h2>
       <span class="text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">{{ specials|length }}</span>
     </div>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for e in specials[:6] %}
       <a href="/product/{{ e.product.id }}"
-         class="card-lift bg-white rounded-2xl border border-orange-100 shadow-sm p-4 flex gap-3 group relative overflow-hidden">
-        <!-- Subtle orange accent strip -->
-        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 to-amber-400 rounded-t-2xl"></div>
-        <div class="w-16 h-16 rounded-xl bg-orange-50 shrink-0 flex items-center justify-center overflow-hidden mt-1">
-          {% if e.product.image_url %}
-          <img src="{{ e.product.image_url }}" alt="" class="w-full h-full object-contain p-0.5">
-          {% else %}
-          <svg class="w-7 h-7 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z"/></svg>
-          {% endif %}
-        </div>
-        <div class="min-w-0 flex-1 mt-1">
-          <div class="text-sm font-semibold text-gray-800 line-clamp-2 group-hover:text-brand transition-colors leading-snug">{{ e.product.name }}</div>
-          <span class="store-pill mt-1.5 inline-block" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
-          <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-xl font-extrabold text-orange-600 leading-none">${{ "%.2f"|format(e.latest.price) }}</span>
-            {% if e.latest.was_price and e.latest.was_price > e.latest.price %}
-            <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(e.latest.was_price) }}</span>
-            {% set saving = e.latest.was_price - e.latest.price %}
-            <span class="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Save ${{ "%.2f"|format(saving) }}</span>
+         class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-200 overflow-hidden flex group relative">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-orange-400"></div>
+        <div class="flex gap-3 p-4 pl-5 flex-1">
+          <div class="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
+            {% if e.product.image_url %}
+            <img src="{{ e.product.image_url }}" alt="" class="w-full h-full object-contain p-1">
             {% else %}
-            <span class="badge-spec">SPECIAL</span>
+            <svg class="w-6 h-6 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z"/></svg>
             {% endif %}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-brand transition-colors">{{ e.product.name }}</div>
+            <span class="store-pill mt-1.5 inline-block text-[10px]" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
+            <div class="flex items-baseline gap-2 mt-2">
+              <span class="text-lg font-extrabold text-orange-600 leading-none">${{ "%.2f"|format(e.latest.price) }}</span>
+              {% if e.latest.was_price and e.latest.was_price > e.latest.price %}
+              <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(e.latest.was_price) }}</span>
+              <span class="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Save ${{ "%.2f"|format(e.latest.was_price - e.latest.price) }}</span>
+              {% else %}
+              <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md">SPECIAL</span>
+              {% endif %}
+            </div>
           </div>
         </div>
       </a>
@@ -158,112 +157,95 @@
   </section>
   {% endif %}
 
-  <!-- ── Recent Price Changes section ────────────────────────────────── -->
+  <!-- ── Recent Price Changes ──────────────────────────────────────────── -->
   {% if recent_changes %}
   <section class="mb-7">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider section-header mb-3">
-      Recent Price Changes
-    </h2>
+    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Recent Price Changes</h2>
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
       {% for c in recent_changes %}
-      <a href="/product/{{ c.product.id }}" class="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/80 transition-colors group">
+      <a href="/product/{{ c.product.id }}" class="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/60 transition-colors group">
         <div class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
           {% if c.product.image_url %}
           <img src="{{ c.product.image_url }}" alt="" class="w-full h-full object-contain p-0.5">
           {% else %}
-          <svg class="w-5 h-5 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg>
+          <svg class="w-5 h-5 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
           {% endif %}
         </div>
         <div class="flex-1 min-w-0">
           <div class="text-sm font-semibold text-gray-800 truncate group-hover:text-brand transition-colors">{{ c.product.name }}</div>
-          <span class="store-pill mt-0.5 inline-block" style="background:{{ store_color(c.product.store) }}">{{ store_label(c.product.store) }}</span>
+          <span class="store-pill mt-0.5 inline-block text-[10px]" style="background:{{ store_color(c.product.store) }}">{{ store_label(c.product.store) }}</span>
         </div>
         <div class="text-right shrink-0">
           <div class="text-sm font-bold text-gray-900">${{ "%.2f"|format(c.latest.price) }}</div>
           <div class="text-xs text-gray-400 line-through">${{ "%.2f"|format(c.prev.price) }}</div>
         </div>
-        <div class="shrink-0">
-          {% if c.drop_pct > 0 %}
-          <span class="badge-drop">↓{{ c.drop_pct }}%</span>
-          {% elif c.drop_pct < 0 %}
-          <span class="badge-rise">↑{{ (c.drop_pct * -1)|round(1) }}%</span>
+        <div class="shrink-0 w-16 text-right">
+          {% if c.drop_pct > 0 %}<span class="badge-drop text-[10px]">↓{{ c.drop_pct }}%</span>
+          {% elif c.drop_pct < 0 %}<span class="badge-rise text-[10px]">↑{{ (c.drop_pct * -1)|round(1) }}%</span>
           {% endif %}
         </div>
-        <div class="text-xs text-gray-300 shrink-0 hidden sm:block">{{ time_ago(c.latest.scraped_at) }}</div>
+        <div class="text-[10px] text-gray-300 shrink-0 hidden sm:block">{{ time_ago(c.latest.scraped_at) }}</div>
       </a>
       {% endfor %}
     </div>
   </section>
   {% endif %}
 
-  <!-- ── Quick watchlist overview ──────────────────────────────────────── -->
+  <!-- ── All Watched Products ───────────────────────────────────────────── -->
   <section>
     <div class="flex items-center justify-between mb-3">
-      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider section-header">
-        All Watched Products
-      </h2>
-      <a href="/watchlist" class="text-sm text-brand hover:text-brand-dark font-medium transition-colors">
-        Manage →
-      </a>
+      <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">All Watched Products</h2>
+      <a href="/watchlist" class="text-sm text-brand hover:text-brand-dark font-medium transition-colors">Manage →</a>
     </div>
-
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <table class="w-full text-sm">
         <thead>
-          <tr class="bg-gray-50 border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wider">
+          <tr class="bg-gray-50/80 border-b border-gray-100 text-[11px] text-gray-400 uppercase tracking-wider">
             <th class="text-left px-5 py-3 font-semibold">Product</th>
             <th class="text-left px-5 py-3 font-semibold hidden sm:table-cell">Store</th>
-            <th class="text-right px-5 py-3 font-semibold">Price</th>
-            <th class="text-right px-5 py-3 font-semibold hidden md:table-cell">14d trend</th>
+            <th class="px-5 py-3 font-semibold">Price</th>
+            <th class="px-5 py-3 font-semibold hidden md:table-cell">14d trend</th>
             <th class="text-right px-5 py-3 font-semibold hidden sm:table-cell">Updated</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-50">
           {% for e in enriched %}
-          <tr class="hover:bg-gray-50/70 transition-colors group">
-
+          <tr class="hover:bg-gray-50/60 transition-colors group">
             <td class="px-5 py-3.5">
               <a href="/product/{{ e.product.id }}" class="flex items-center gap-3">
-                {% if e.product.image_url %}
-                <img src="{{ e.product.image_url }}" alt="" class="w-9 h-9 object-contain rounded-lg bg-gray-50 shrink-0">
-                {% else %}
-                <div class="w-9 h-9 bg-gray-100 rounded-lg shrink-0"></div>
-                {% endif %}
-                <span class="font-medium text-gray-800 truncate max-w-[180px] group-hover:text-brand transition-colors">{{ e.product.name }}</span>
+                <div class="w-9 h-9 rounded-lg bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
+                  {% if e.product.image_url %}
+                  <img src="{{ e.product.image_url }}" alt="" class="w-full h-full object-contain p-0.5">
+                  {% else %}
+                  <div class="w-4 h-4 bg-gray-200 rounded"></div>
+                  {% endif %}
+                </div>
+                <span class="font-medium text-gray-800 truncate max-w-[180px] group-hover:text-brand transition-colors text-sm">{{ e.product.name }}</span>
               </a>
             </td>
-
             <td class="px-5 py-3.5 hidden sm:table-cell">
-              <span class="store-pill" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
+              <span class="store-pill text-[10px]" style="background:{{ store_color(e.product.store) }}">{{ store_label(e.product.store) }}</span>
             </td>
-
-            <td class="px-5 py-3.5 text-right">
+            <td class="px-5 py-3.5">
               {% if e.latest and e.latest.price %}
+              <div class="flex items-baseline gap-1.5">
                 <span class="font-bold text-gray-900">${{ "%.2f"|format(e.latest.price) }}</span>
-                {% if e.drop_pct and e.drop_pct > 0 %}
-                  <span class="badge-drop ml-1.5">↓{{ e.drop_pct }}%</span>
-                {% elif e.drop_pct and e.drop_pct < 0 %}
-                  <span class="badge-rise ml-1.5">↑{{ (e.drop_pct * -1)|round(1) }}%</span>
+                {% if e.drop_pct and e.drop_pct > 0 %}<span class="badge-drop text-[10px]">↓{{ e.drop_pct }}%</span>
+                {% elif e.drop_pct and e.drop_pct < 0 %}<span class="badge-rise text-[10px]">↑{{ (e.drop_pct * -1)|round(1) }}%</span>
                 {% endif %}
-              {% else %}
-                <span class="text-gray-300">—</span>
-              {% endif %}
+              </div>
+              {% else %}<span class="text-gray-300">—</span>{% endif %}
             </td>
-
-            <td class="px-5 py-3.5 hidden md:table-cell text-right">
+            <td class="px-5 py-3.5 hidden md:table-cell">
               {% if e.prices|length >= 2 %}
               <svg width="80" height="28" class="inline-block">
                 <polyline points="{{ sparkline_points(e.prices) }}" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
               </svg>
-              {% else %}
-              <span class="text-gray-200 text-xs">—</span>
-              {% endif %}
+              {% else %}<span class="text-gray-200 text-xs">—</span>{% endif %}
             </td>
-
-            <td class="px-5 py-3.5 text-right hidden sm:table-cell text-gray-400 text-xs">
+            <td class="px-5 py-3.5 text-right hidden sm:table-cell text-[10px] text-gray-300">
               {% if e.latest %}{{ time_ago(e.latest.scraped_at) }}{% else %}—{% endif %}
             </td>
-
           </tr>
           {% endfor %}
         </tbody>

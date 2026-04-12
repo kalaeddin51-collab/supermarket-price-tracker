@@ -5,49 +5,59 @@
 {% set drop_pct = e.drop_pct %}
 
 <tr id="watchlist-row-{{ entry.id }}"
-    class="hover:bg-gray-50/80 transition-colors group"
+    class="hover:bg-gray-50/60 transition-colors group"
     {% if oob is defined and oob %}hx-swap-oob="afterbegin:#watchlist-tbody"{% endif %}>
 
-  <!-- Product -->
+  {# Product name + image #}
   <td class="px-5 py-3.5">
-    <a href="/product/{{ product.id }}" class="flex items-center gap-3">
+    <a href="/product/{{ product.id }}" class="flex items-center gap-3 min-w-0">
       <div class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
         {% if product.image_url %}
         <img src="{{ product.image_url }}" alt="" class="w-full h-full object-contain p-0.5">
         {% else %}
-        <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg>
+        <svg class="w-5 h-5 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
         {% endif %}
       </div>
-      <div>
-        <div class="font-semibold text-sm text-gray-800 truncate max-w-[160px] group-hover:text-brand transition-colors">{{ product.name }}</div>
+      <div class="min-w-0">
+        <div class="font-semibold text-sm text-gray-800 truncate max-w-[200px] group-hover:text-brand transition-colors">{{ product.name }}</div>
         {% if product.unit %}<div class="text-xs text-gray-400 mt-0.5">{{ product.unit }}</div>{% endif %}
       </div>
     </a>
   </td>
 
-  <!-- Store -->
+  {# Store #}
   <td class="px-5 py-3.5 hidden sm:table-cell">
-    <span class="store-pill" style="background:{{ store_color(product.store) }}">{{ store_label(product.store) }}</span>
+    <span class="store-pill text-[10px]" style="background:{{ store_color(product.store) }}">{{ store_label(product.store) }}</span>
   </td>
 
-  <!-- Price -->
-  <td class="px-5 py-3.5 text-right">
+  {# Price + badges #}
+  <td class="px-5 py-3.5">
     {% if latest and latest.price %}
-    <div class="font-bold text-gray-900">${{ "%.2f"|format(latest.price) }}</div>
-    {% if latest.was_price %}<div class="text-xs text-gray-400 line-through">${{ "%.2f"|format(latest.was_price) }}</div>{% endif %}
-    {% if latest.on_special %}<span class="badge-spec inline-block mt-0.5">SPECIAL</span>{% endif %}
-    {% if drop_pct and drop_pct > 0 %}
-    <div><span class="badge-drop mt-0.5 inline-block">↓{{ drop_pct }}%</span></div>
-    {% elif drop_pct and drop_pct < 0 %}
-    <div><span class="badge-rise mt-0.5 inline-block">↑{{ (drop_pct * -1)|round(1) }}%</span></div>
-    {% endif %}
+    <div class="flex items-baseline gap-2">
+      <span class="font-bold text-gray-900">${{ "%.2f"|format(latest.price) }}</span>
+      {% if latest.was_price %}
+      <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(latest.was_price) }}</span>
+      {% endif %}
+    </div>
+    <div class="flex flex-wrap gap-1 mt-1">
+      {% if drop_pct and drop_pct > 0 %}
+      <span class="badge-drop text-[10px]">↓{{ drop_pct }}%</span>
+      {% elif drop_pct and drop_pct < 0 %}
+      <span class="badge-rise text-[10px]">↑{{ (drop_pct * -1)|round(1) }}%</span>
+      {% endif %}
+      {% if latest.on_special %}
+      <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md">SPECIAL</span>
+      {% endif %}
+    </div>
     {% else %}
-    <span class="text-gray-300">—</span>
+    <span class="text-gray-300 text-sm">—</span>
     {% endif %}
   </td>
 
-  <!-- Sparkline -->
-  <td class="px-5 py-3.5 hidden md:table-cell text-right">
+  {# Sparkline #}
+  <td class="px-5 py-3.5 hidden md:table-cell">
     {% if prices|length >= 2 %}
     <svg width="80" height="28" class="inline-block">
       <polyline points="{{ sparkline_points(prices) }}" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
@@ -57,36 +67,36 @@
     {% endif %}
   </td>
 
-  <!-- Alert config -->
+  {# Alerts #}
   <td class="px-5 py-3.5 hidden lg:table-cell">
-    <div class="flex flex-wrap gap-1 justify-center">
+    <div class="flex flex-wrap gap-1">
       {% if entry.alert_drop_pct %}
-      <span class="bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-emerald-100">↓{{ entry.alert_drop_pct }}%</span>
+      <span class="bg-emerald-50 text-emerald-600 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-100">↓{{ entry.alert_drop_pct }}%</span>
       {% endif %}
       {% if entry.alert_price_below %}
-      <span class="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-blue-100">&lt;${{ "%.2f"|format(entry.alert_price_below) }}</span>
+      <span class="bg-blue-50 text-blue-600 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-100">&lt;${{ "%.2f"|format(entry.alert_price_below) }}</span>
       {% endif %}
       {% if not entry.alert_drop_pct and not entry.alert_price_below %}
-      <span class="text-gray-300 text-xs">none set</span>
+      <span class="text-gray-300 text-[10px]">No alerts</span>
       {% endif %}
     </div>
-    <div class="flex gap-2 justify-center mt-1">
-      {% if entry.notify_email %}<span class="text-gray-400" title="Email alerts">✉</span>{% endif %}
-      {% if entry.notify_push  %}<span class="text-gray-400" title="Push alerts">🔔</span>{% endif %}
+    <div class="flex gap-2 mt-1">
+      {% if entry.notify_email %}<span class="text-gray-400 text-xs" title="Email alerts">✉</span>{% endif %}
+      {% if entry.notify_push  %}<span class="text-gray-400 text-xs" title="Push alerts">🔔</span>{% endif %}
     </div>
   </td>
 
-  <!-- Actions -->
-  <td class="px-5 py-3.5 text-right">
+  {# Actions + timestamp #}
+  <td class="px-5 py-3.5">
     <div class="flex items-center justify-end gap-1.5">
-      <span class="text-xs text-gray-300 hidden sm:block mr-1">
-        {% if latest %}{{ time_ago(latest.scraped_at) }}{% endif %}
-      </span>
+      {% if latest %}
+      <span class="text-[10px] text-gray-300 hidden sm:block mr-1">{{ time_ago(latest.scraped_at) }}</span>
+      {% endif %}
       <button
         hx-get="/partials/watchlist/{{ entry.id }}/edit"
         hx-target="#watchlist-row-{{ entry.id }}"
         hx-swap="outerHTML"
-        class="text-xs font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/40 bg-white px-3 py-1.5 rounded-lg transition-all">
+        class="text-xs font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/30 bg-white px-3 py-1.5 rounded-lg transition-all">
         Edit
       </button>
       <button
@@ -94,8 +104,10 @@
         hx-target="#watchlist-row-{{ entry.id }}"
         hx-swap="outerHTML"
         hx-confirm="Remove {{ product.name }} from watchlist?"
-        class="text-xs font-medium text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 bg-white px-2.5 py-1.5 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        class="text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 bg-white p-1.5 rounded-lg transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
       </button>
     </div>
   </td>

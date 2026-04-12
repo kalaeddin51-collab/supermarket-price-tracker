@@ -4,167 +4,158 @@
 {% set prices  = e.prices %}
 {% set drop_pct = e.drop_pct %}
 
-{# ── Category tag derivation ── #}
+{# ── Category tag ── #}
 {% set name_lower = product.name | lower %}
 {% if 'milk' in name_lower or 'cream' in name_lower or 'butter' in name_lower or 'yoghurt' in name_lower or 'yogurt' in name_lower or 'dairy' in name_lower %}
-  {% set cat_label = 'DAIRY' %}
-  {% set cat_cls = 'bg-sky-100 text-sky-700 border-sky-200' %}
+  {% set cat_label = 'Dairy' %}{% set cat_cls = 'bg-sky-50 text-sky-600 border-sky-100' %}
 {% elif 'egg' in name_lower %}
-  {% set cat_label = 'EGGS' %}
-  {% set cat_cls = 'bg-yellow-100 text-yellow-700 border-yellow-200' %}
+  {% set cat_label = 'Eggs' %}{% set cat_cls = 'bg-yellow-50 text-yellow-600 border-yellow-100' %}
 {% elif 'cheese' in name_lower %}
-  {% set cat_label = 'CHEESE' %}
-  {% set cat_cls = 'bg-amber-100 text-amber-700 border-amber-200' %}
+  {% set cat_label = 'Cheese' %}{% set cat_cls = 'bg-amber-50 text-amber-600 border-amber-100' %}
 {% elif 'chicken' in name_lower or 'beef' in name_lower or 'lamb' in name_lower or 'pork' in name_lower or 'mince' in name_lower or 'bacon' in name_lower or 'ham' in name_lower or 'sausage' in name_lower or 'meat' in name_lower %}
-  {% set cat_label = 'MEAT' %}
-  {% set cat_cls = 'bg-red-100 text-red-700 border-red-200' %}
-{% elif 'salmon' in name_lower or 'tuna' in name_lower or 'prawn' in name_lower or 'fish' in name_lower or 'seafood' in name_lower or 'barramundi' in name_lower %}
-  {% set cat_label = 'SEAFOOD' %}
-  {% set cat_cls = 'bg-teal-100 text-teal-700 border-teal-200' %}
-{% elif 'bread' in name_lower or 'sourdough' in name_lower or 'wrap' in name_lower or 'roll' in name_lower or 'muffin' in name_lower or 'crumpet' in name_lower %}
-  {% set cat_label = 'BREAD' %}
-  {% set cat_cls = 'bg-amber-50 text-amber-600 border-amber-200' %}
-{% elif 'pasta' in name_lower or 'rice' in name_lower or 'flour' in name_lower or 'sugar' in name_lower or 'sauce' in name_lower or 'honey' in name_lower or 'jam' in name_lower or 'vegemite' in name_lower or 'canned' in name_lower %}
-  {% set cat_label = 'PANTRY' %}
-  {% set cat_cls = 'bg-stone-100 text-stone-600 border-stone-200' %}
-{% elif 'oil' in name_lower or 'olive' in name_lower or 'coconut oil' in name_lower or 'canola' in name_lower or 'sesame' in name_lower %}
-  {% set cat_label = 'OILS' %}
-  {% set cat_cls = 'bg-lime-100 text-lime-700 border-lime-200' %}
-{% elif 'juice' in name_lower or 'drink' in name_lower or 'water' in name_lower or 'kombucha' in name_lower or 'cola' in name_lower or 'soda' in name_lower %}
-  {% set cat_label = 'DRINKS' %}
-  {% set cat_cls = 'bg-purple-100 text-purple-700 border-purple-200' %}
+  {% set cat_label = 'Meat' %}{% set cat_cls = 'bg-red-50 text-red-600 border-red-100' %}
+{% elif 'salmon' in name_lower or 'tuna' in name_lower or 'prawn' in name_lower or 'fish' in name_lower or 'seafood' in name_lower %}
+  {% set cat_label = 'Seafood' %}{% set cat_cls = 'bg-teal-50 text-teal-600 border-teal-100' %}
+{% elif 'bread' in name_lower or 'sourdough' in name_lower or 'wrap' in name_lower or 'roll' in name_lower %}
+  {% set cat_label = 'Bread' %}{% set cat_cls = 'bg-amber-50 text-amber-600 border-amber-100' %}
+{% elif 'pasta' in name_lower or 'rice' in name_lower or 'flour' in name_lower or 'sugar' in name_lower or 'sauce' in name_lower or 'honey' in name_lower or 'jam' in name_lower %}
+  {% set cat_label = 'Pantry' %}{% set cat_cls = 'bg-stone-50 text-stone-500 border-stone-100' %}
+{% elif 'juice' in name_lower or 'drink' in name_lower or 'water' in name_lower or 'cola' in name_lower or 'soda' in name_lower %}
+  {% set cat_label = 'Drinks' %}{% set cat_cls = 'bg-purple-50 text-purple-600 border-purple-100' %}
 {% elif 'frozen' in name_lower %}
-  {% set cat_label = 'FROZEN' %}
-  {% set cat_cls = 'bg-blue-100 text-blue-700 border-blue-200' %}
-{% elif 'coffee' in name_lower or 'tea' in name_lower or 'chocolate' in name_lower or 'cocoa' in name_lower %}
-  {% set cat_label = 'COFFEE & TEA' %}
-  {% set cat_cls = 'bg-amber-100 text-amber-800 border-amber-300' %}
-{% elif 'chips' in name_lower or 'biscuit' in name_lower or 'nut' in name_lower or 'cracker' in name_lower or 'popcorn' in name_lower or 'snack' in name_lower %}
-  {% set cat_label = 'SNACKS' %}
-  {% set cat_cls = 'bg-pink-100 text-pink-700 border-pink-200' %}
-{% elif 'cleaning' in name_lower or 'detergent' in name_lower or 'bleach' in name_lower or 'toilet' in name_lower or 'paper towel' in name_lower or 'sponge' in name_lower %}
-  {% set cat_label = 'CLEANING' %}
-  {% set cat_cls = 'bg-slate-100 text-slate-600 border-slate-200' %}
-{% elif 'avocado' in name_lower or 'tomato' in name_lower or 'broccoli' in name_lower or 'spinach' in name_lower or 'carrot' in name_lower or 'onion' in name_lower or 'mushroom' in name_lower or 'potato' in name_lower or 'garlic' in name_lower or 'capsicum' in name_lower or 'produce' in name_lower or 'vegetable' in name_lower or 'fruit' in name_lower or 'berry' in name_lower or 'apple' in name_lower or 'banana' in name_lower %}
-  {% set cat_label = 'PRODUCE' %}
-  {% set cat_cls = 'bg-green-100 text-green-700 border-green-200' %}
+  {% set cat_label = 'Frozen' %}{% set cat_cls = 'bg-blue-50 text-blue-600 border-blue-100' %}
+{% elif 'coffee' in name_lower or 'tea' in name_lower or 'chocolate' in name_lower %}
+  {% set cat_label = 'Coffee & Tea' %}{% set cat_cls = 'bg-amber-50 text-amber-700 border-amber-100' %}
+{% elif 'chips' in name_lower or 'biscuit' in name_lower or 'nut' in name_lower or 'cracker' in name_lower or 'snack' in name_lower %}
+  {% set cat_label = 'Snacks' %}{% set cat_cls = 'bg-pink-50 text-pink-600 border-pink-100' %}
+{% elif 'avocado' in name_lower or 'tomato' in name_lower or 'broccoli' in name_lower or 'spinach' in name_lower or 'carrot' in name_lower or 'potato' in name_lower or 'apple' in name_lower or 'banana' in name_lower or 'fruit' in name_lower or 'vegetable' in name_lower %}
+  {% set cat_label = 'Produce' %}{% set cat_cls = 'bg-green-50 text-green-600 border-green-100' %}
 {% else %}
-  {% set cat_label = 'GROCERY' %}
-  {% set cat_cls = 'bg-gray-100 text-gray-600 border-gray-200' %}
+  {% set cat_label = 'Grocery' %}{% set cat_cls = 'bg-gray-50 text-gray-500 border-gray-100' %}
+{% endif %}
+
+{# Determine accent colour based on price movement #}
+{% if drop_pct and drop_pct > 0 %}
+  {% set accent = 'bg-emerald-400' %}
+{% elif drop_pct and drop_pct < 0 %}
+  {% set accent = 'bg-red-400' %}
+{% else %}
+  {% set accent = 'bg-gray-200' %}
 {% endif %}
 
 <div id="watchlist-row-{{ entry.id }}"
      data-entry-id="{{ entry.id }}"
-     class="relative bg-white rounded-2xl shadow-sm p-4 flex gap-4 group transition-all"
-     :class="isSelected({{ entry.id }}) ? 'border-2 border-indigo-400' : 'border border-gray-100 hover:shadow-md hover:border-gray-200'"
+     class="relative bg-white rounded-2xl border shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-200 overflow-hidden group"
+     :class="isSelected({{ entry.id }}) ? 'border-brand ring-1 ring-brand/20' : 'border-gray-100'"
      {% if oob is defined and oob %}hx-swap-oob="afterbegin:#watchlist-grid"{% endif %}>
 
-  <!-- Bulk-select checkbox (appears on hover or when selected) -->
+  {# Left accent bar — colour reflects price trend #}
+  <div class="absolute left-0 top-0 bottom-0 w-0.5 {{ accent }}"></div>
+
+  {# Bulk-select checkbox #}
   <button type="button"
           @click.prevent.stop="toggleSelect({{ entry.id }})"
-          class="absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all"
-          :class="isSelected({{ entry.id }}) ? 'bg-indigo-500 border-indigo-500 opacity-100' : 'bg-white border-gray-300 opacity-0 group-hover:opacity-100 hover:border-indigo-400'"
+          class="absolute top-3 right-3 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all"
+          :class="isSelected({{ entry.id }}) ? 'bg-brand border-brand opacity-100' : 'bg-white border-gray-300 opacity-0 group-hover:opacity-100 hover:border-brand'"
           title="Select">
-    <svg x-show="isSelected({{ entry.id }})" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+    <svg x-show="isSelected({{ entry.id }})" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
+      <path d="M10 3L5 8.5 2 5.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </button>
 
-  <!-- Product image -->
-  <a href="/product/{{ product.id }}" class="shrink-0">
-    <div class="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
-      {% if product.image_url %}
-      <img src="{{ product.image_url }}" alt="{{ product.name }}" class="w-full h-full object-contain p-1">
-      {% else %}
-      <svg class="w-7 h-7 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-      </svg>
-      {% endif %}
-    </div>
-  </a>
+  <div class="flex gap-4 p-4 pl-5">
 
-  <!-- Main content -->
-  <div class="flex-1 min-w-0">
-    <div class="flex items-start justify-between gap-2">
-
-      <!-- Name + store + category -->
-      <div class="min-w-0 flex-1">
-        <a href="/product/{{ product.id }}"
-           class="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 group-hover:text-brand transition-colors">
-          {{ product.name }}
-        </a>
-        <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
-          <span class="store-pill text-[10px]" style="background:{{ store_color(product.store) }}">{{ store_label(product.store) }}</span>
-          <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border {{ cat_cls }} uppercase tracking-wide">{{ cat_label }}</span>
-        </div>
-      </div>
-
-      <!-- Price block -->
-      <div class="text-right shrink-0">
-        {% if latest and latest.price %}
-        <div class="text-xl font-extrabold text-gray-900 leading-none">${{ "%.2f"|format(latest.price) }}</div>
-        {% if latest.was_price %}
-        <div class="text-xs text-gray-400 line-through mt-0.5">${{ "%.2f"|format(latest.was_price) }}</div>
-        {% endif %}
-        {% if drop_pct and drop_pct > 0 %}
-        <div class="mt-0.5"><span class="badge-drop text-[10px]">↓{{ drop_pct }}%</span></div>
-        {% elif drop_pct and drop_pct < 0 %}
-        <div class="mt-0.5"><span class="badge-rise text-[10px]">↑{{ (drop_pct * -1)|round(1) }}%</span></div>
-        {% endif %}
-        {% if latest.on_special %}
-        <div class="mt-0.5"><span class="badge-spec text-[10px]">SPECIAL</span></div>
-        {% endif %}
+    {# Product image #}
+    <a href="/product/{{ product.id }}" class="shrink-0">
+      <div class="w-[68px] h-[68px] rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
+        {% if product.image_url %}
+        <img src="{{ product.image_url }}" alt="{{ product.name }}" class="w-full h-full object-contain p-1.5">
         {% else %}
-        <span class="text-gray-300 text-sm">—</span>
-        {% endif %}
-      </div>
-
-    </div>
-
-    <!-- Bottom row: sparkline + alerts + actions -->
-    <div class="flex items-center justify-between gap-3 mt-2.5 pt-2.5 border-t border-gray-50">
-
-      <!-- Sparkline + alert info -->
-      <div class="flex items-center gap-3 min-w-0">
-        {% if prices|length >= 2 %}
-        <svg width="80" height="28" class="shrink-0">
-          <polyline points="{{ sparkline_points(prices) }}" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <svg class="w-7 h-7 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
         {% endif %}
-        <div class="flex flex-wrap gap-1 min-w-0">
-          {% if entry.alert_price_below %}
-          <span class="bg-blue-50 text-blue-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-100 whitespace-nowrap">Alert &lt; ${{ "%.2f"|format(entry.alert_price_below) }}</span>
+      </div>
+    </a>
+
+    {# Main content #}
+    <div class="flex-1 min-w-0 pr-6">
+
+      {# Name + badges row #}
+      <a href="/product/{{ product.id }}"
+         class="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 hover:text-brand transition-colors block mb-2">
+        {{ product.name }}
+      </a>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="store-pill text-[10px]" style="background:{{ store_color(product.store) }}">{{ store_label(product.store) }}</span>
+        <span class="text-[10px] font-medium px-2 py-0.5 rounded-full border {{ cat_cls }}">{{ cat_label }}</span>
+      </div>
+
+      {# Price + sparkline + alerts row #}
+      <div class="flex items-end justify-between gap-3 mt-3 pt-3 border-t border-gray-50">
+
+        {# Left: price block #}
+        <div>
+          {% if latest and latest.price %}
+          <div class="flex items-baseline gap-2">
+            <span class="text-xl font-extrabold text-gray-900 leading-none">${{ "%.2f"|format(latest.price) }}</span>
+            {% if latest.was_price %}
+            <span class="text-xs text-gray-400 line-through">${{ "%.2f"|format(latest.was_price) }}</span>
+            {% endif %}
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {% if drop_pct and drop_pct > 0 %}
+            <span class="badge-drop text-[10px]">↓{{ drop_pct }}%</span>
+            {% elif drop_pct and drop_pct < 0 %}
+            <span class="badge-rise text-[10px]">↑{{ (drop_pct * -1)|round(1) }}%</span>
+            {% endif %}
+            {% if latest.on_special %}
+            <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md tracking-wide">SPECIAL</span>
+            {% endif %}
+            {% if entry.alert_price_below %}
+            <span class="bg-blue-50 text-blue-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-100">&lt; ${{ "%.2f"|format(entry.alert_price_below) }}</span>
+            {% endif %}
+            {% if entry.alert_drop_pct %}
+            <span class="bg-emerald-50 text-emerald-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-emerald-100">↓{{ entry.alert_drop_pct }}%</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <span class="text-sm text-gray-300 italic">No price data</span>
           {% endif %}
-          {% if entry.alert_drop_pct %}
-          <span class="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-100 whitespace-nowrap">Alert ↓{{ entry.alert_drop_pct }}%</span>
+        </div>
+
+        {# Right: sparkline + updated + actions #}
+        <div class="flex flex-col items-end gap-2 shrink-0">
+          {% if prices|length >= 2 %}
+          <svg width="72" height="24" class="shrink-0">
+            <polyline points="{{ sparkline_points(prices) }}" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
           {% endif %}
           {% if latest %}
           <span class="text-[10px] text-gray-300">{{ time_ago(latest.scraped_at) }}</span>
           {% endif %}
+          <div class="flex items-center gap-1.5">
+            <button
+              hx-get="/partials/watchlist/{{ entry.id }}/edit"
+              hx-target="#watchlist-row-{{ entry.id }}"
+              hx-swap="outerHTML"
+              class="text-xs font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/30 bg-white px-3 py-1.5 rounded-lg transition-all">
+              Edit
+            </button>
+            <button
+              hx-delete="/partials/watchlist/{{ entry.id }}"
+              hx-target="#watchlist-row-{{ entry.id }}"
+              hx-swap="outerHTML"
+              hx-confirm="Remove {{ product.name }} from watchlist?"
+              class="text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 bg-white p-1.5 rounded-lg transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- Action buttons -->
-      <div class="flex items-center gap-1.5 shrink-0">
-        <button
-          hx-get="/partials/watchlist/{{ entry.id }}/edit"
-          hx-target="#watchlist-row-{{ entry.id }}"
-          hx-swap="outerHTML"
-          class="text-xs font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/40 bg-white px-3 py-1.5 rounded-lg transition-all">
-          Edit
-        </button>
-        <button
-          hx-delete="/partials/watchlist/{{ entry.id }}"
-          hx-target="#watchlist-row-{{ entry.id }}"
-          hx-swap="outerHTML"
-          hx-confirm="Remove {{ product.name }} from watchlist?"
-          class="text-xs font-medium text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 bg-white px-2.5 py-1.5 rounded-lg transition-all">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
       </div>
-
     </div>
   </div>
 
