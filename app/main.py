@@ -60,32 +60,47 @@ def _group_search_results(all_results: list) -> list[dict]:
 
     for r in all_results:
         placed = False
-        # Use base name (size-stripped) for comparison so "Milk 2L" and "Milk 3L" stay separate
-        r_base = _base_name(r.name)
+        # Strip size/weight tokens so "Milk 2L" and "Milk 3L" stay separate groups
+        r_base  = _base_name(r.name)
+        r_brand = (r._brand or "").lower().strip()
+
         for g in groups:
-            if _names_similar(g["_base"], r_base, threshold=0.60):
-                # Don't add duplicate store entries — keep cheapest per store
-                existing_stores = {e.store for e in g["entries"]}
-                if r.store in existing_stores:
-                    # Replace if this one is cheaper
-                    for i, e in enumerate(g["entries"]):
-                        if e.store == r.store:
-                            r_price = r.price if r.price is not None else float("inf")
-                            e_price = e.price if e.price is not None else float("inf")
-                            if r_price < e_price:
-                                g["entries"][i] = r
-                            break
-                else:
-                    g["entries"].append(r)
-                # Prefer longer (more descriptive) name as canonical
-                if len(r.name) > len(g["canonical"]):
-                    g["canonical"] = r.name
-                    g["brand"] = r._brand
-                # Prefer image from a real URL (non-placeholder)
-                if not g["image_url"] and r.image_url:
-                    g["image_url"] = r.image_url
-                placed = True
-                break
+            g_brand = (g["brand"] or "").lower().strip()
+
+            # ── Brand gate: different brands are NEVER the same product ──
+            # Only skip the brand check when both are blank (unknown brand)
+            if r_brand and g_brand and r_brand != g_brand:
+                continue
+
+            # ── Name similarity check ──
+            if not _names_similar(g["_base"], r_base, threshold=0.65):
+                continue
+
+            # Same product — merge this store entry in
+            existing_stores = {e.store for e in g["entries"]}
+            if r.store in existing_stores:
+                # Keep cheapest per store
+                for i, e in enumerate(g["entries"]):
+                    if e.store == r.store:
+                        r_price = r.price if r.price is not None else float("inf")
+                        e_price = e.price if e.price is not None else float("inf")
+                        if r_price < e_price:
+                            g["entries"][i] = r
+                        break
+            else:
+                g["entries"].append(r)
+
+            # Prefer the longer (more descriptive) name as the canonical label
+            if len(r.name) > len(g["canonical"]):
+                g["canonical"] = r.name
+                g["brand"]     = r._brand
+
+            # Prefer an actual image over a placeholder
+            if not g["image_url"] and r.image_url:
+                g["image_url"] = r.image_url
+
+            placed = True
+            break
 
         if not placed:
             groups.append({
