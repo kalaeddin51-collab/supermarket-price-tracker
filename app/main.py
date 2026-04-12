@@ -111,14 +111,46 @@ def _group_search_results(all_results: list) -> list[dict]:
                 "entries":   [r],
             })
 
-    # Finalise each group: sort entries, compute savings
+    # Finalise each group: sort by per-unit price, compute savings
     for g in groups:
-        g["entries"].sort(key=lambda r: r.price if r.price is not None else float("inf"))
+
+        def _pu_sort(r):
+            """Sort key: per-unit price when available, else raw price."""
+            if r.price is None:
+                return float("inf")
+            pu = getattr(r, "_pu_value", None)
+            return pu if pu is not None else float(r.price)
+
+        g["entries"].sort(key=_pu_sort)
         priced = [r for r in g["entries"] if r.price is not None]
+
         g["min_price"]  = priced[0].price  if priced else None
         g["max_price"]  = priced[-1].price if priced else None
-        g["savings"]    = round(g["max_price"] - g["min_price"], 2) if len(priced) > 1 else 0
         g["best_store"] = priced[0].store  if priced else None
+
+        # Per-unit savings: how much cheaper is the best option per unit
+        if len(priced) > 1:
+            best_pu  = getattr(priced[0],  "_pu_value", None)
+            worst_pu = getattr(priced[-1], "_pu_value", None)
+            if best_pu is not None and worst_pu is not None and worst_pu > best_pu:
+                # Express savings using the best option's label unit
+                # e.g. best = $14.00/L, worst = $31.20/L → save $17.20/L
+                best_label  = getattr(priced[0],  "_pu_label", "") or ""
+                # Extract the display divisor from the label (100mL, L, kg, 100g)
+                import re as _re
+                m = _re.search(r"/(100mL|100g|L|kg|ea)", best_label, _re.IGNORECASE)
+                divisor_label = m.group(1) if m else "unit"
+                g["savings"]       = round(worst_pu - best_pu, 6)   # raw base-unit diff
+                g["savings_label"] = f"/${worst_pu - best_pu:.2f}/{divisor_label} cheaper"
+                g["has_savings"]   = True
+            else:
+                g["savings"] = 0
+                g["savings_label"] = ""
+                g["has_savings"] = False
+        else:
+            g["savings"] = 0
+            g["savings_label"] = ""
+            g["has_savings"] = False
 
     return groups
 
@@ -1197,13 +1229,14 @@ async def search_results(
     elif sort == "desc":
         all_results.sort(key=lambda r: r.price if r.price is not None else float("-inf"), reverse=True)
 
-    # Attach brand, per-unit price label, processed flag, and relevance score
+    # Attach brand, per-unit price (value + label), processed flag, relevance
     from app.unit_parser import per_unit_price as _pu
     for r in all_results:
         r._brand = _extract_brand(r.name)
         if r.price:
-            _, r._pu_label = _pu(float(r.price), r.unit or "")
+            r._pu_value, r._pu_label = _pu(float(r.price), r.unit or "")
         else:
+            r._pu_value = None
             r._pu_label = ""
         r._is_processed = _is_processed(r.name, r.category)
         r._relevance = _relevance_score(r.name, q)

@@ -134,17 +134,14 @@
           <div class="flex-1 min-w-0">
             <h3 class="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 mb-1.5">{{ g.canonical }}</h3>
             <div class="flex flex-wrap items-center gap-2">
-              {% if g.min_price %}
-              <span class="text-xs text-gray-500">From <strong class="text-gray-800">${{ "%.2f"|format(g.min_price) }}</strong></span>
+              {% if g.entries|length > 1 %}
+              <span class="text-[11px] text-gray-400">{{ g.entries|length }} stores · compared per unit</span>
               {% endif %}
-              {% if g.entries|length > 1 and g.savings > 0 %}
+              {% if g.has_savings %}
               <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-emerald-100">
                 <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-                Save ${{ "%.2f"|format(g.savings) }}
+                Best value at {{ store_label(g.best_store) }}
               </span>
-              {% endif %}
-              {% if g.entries|length > 1 %}
-              <span class="text-[11px] text-gray-400">{{ g.entries|length }} stores</span>
               {% endif %}
             </div>
           </div>
@@ -178,12 +175,12 @@
         {# ── Store price rows ── #}
         <div class="border-t border-gray-50">
           {% for r in g.entries %}
-          {% set is_best = g.min_price is not none and r.price == g.min_price and g.entries|length > 1 %}
+          {# best_store is set by backend based on lowest per-unit price #}
+          {% set is_best = g.best_store is not none and r.store == g.best_store and g.entries|length > 1 %}
           <div class="flex items-center gap-3 px-4 py-3 relative
             {{ 'bg-emerald-50/40' if is_best else '' }}
             {% if not loop.last %}border-b border-gray-50{% endif %}">
 
-            {# Best price accent bar #}
             {% if is_best %}
             <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400 rounded-r"></div>
             {% endif %}
@@ -202,34 +199,37 @@
               </span>
             </div>
 
-            {# Price #}
-            <div class="w-20 flex-shrink-0">
+            {# Pack price + size — shown together so user can see what they're buying #}
+            <div class="w-28 flex-shrink-0">
               {% if r.price %}
               <div class="flex items-baseline gap-1.5">
-                <span class="text-lg font-bold {{ 'text-emerald-700' if is_best else 'text-gray-800' }} leading-none">
+                <span class="text-base font-bold {{ 'text-emerald-700' if is_best else 'text-gray-800' }} leading-none">
                   ${{ "%.2f"|format(r.price) }}
                 </span>
+                {% if r.was_price is defined and r.was_price and r.was_price > r.price %}
+                <span class="text-[11px] text-gray-400 line-through">${{ "%.2f"|format(r.was_price) }}</span>
+                {% endif %}
               </div>
-              {% if r.was_price is defined and r.was_price and r.was_price > r.price %}
-              <span class="text-[11px] text-gray-400 line-through">${{ "%.2f"|format(r.was_price) }}</span>
+              {% if r.unit %}
+              <div class="text-[11px] text-gray-400 mt-0.5 font-medium">{{ r.unit }}</div>
               {% endif %}
               {% else %}
               <span class="text-xs text-gray-400 italic">Unavailable</span>
               {% endif %}
             </div>
 
-            {# Unit price + badges #}
+            {# Per-unit price — the true comparison metric, shown prominently #}
             <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
               {% if r._pu_label %}
-              <span class="text-xs text-gray-400">{{ r._pu_label }}</span>
-              {% elif r.unit %}
-              <span class="text-xs text-gray-400">{{ r.unit }}</span>
+              <span class="text-xs font-semibold {{ 'text-emerald-600' if is_best else 'text-gray-400' }}">
+                {{ r._pu_label }}
+              </span>
+              {% endif %}
+              {% if is_best and g.has_savings %}
+              <span class="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md">best/unit</span>
               {% endif %}
               {% if r.on_special is defined and r.on_special %}
-              <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md tracking-wide">SPECIAL</span>
-              {% endif %}
-              {% if r._is_processed is defined and r._is_processed %}
-              <span class="text-[10px] text-gray-300 border border-gray-200 px-1.5 py-0.5 rounded-md">Processed</span>
+              <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md">SPECIAL</span>
               {% endif %}
             </div>
 
