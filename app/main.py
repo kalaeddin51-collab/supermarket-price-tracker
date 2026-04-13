@@ -258,21 +258,61 @@ def require_user(request: Request, db: Session = Depends(get_db)):
     return user
 
 STORE_LABELS = {
-    "woolworths": "Woolworths",
-    "coles": "Coles",
-    "harris_farm": "Harris Farm",
-    "iga_crows_nest": "IGA Crows Nest",
-    "iga_milsons_point": "IGA Milsons Point",
-    "iga_north_sydney": "IGA North Sydney",
+    "woolworths":       "Woolworths",
+    "coles":            "Coles",
+    "harris_farm":      "Harris Farm",
+    "iga_north_sydney": "Romeo's IGA",
+    "iga_milsons_point":"IGA Milsons Pt",
+    "iga_crows_nest":   "IGA Greenwich",
 }
 
 STORE_COLORS = {
-    "woolworths": "#007D40",
-    "coles": "#E31A2F",
-    "harris_farm": "#F27200",
-    "iga_crows_nest": "#D2232A",
-    "iga_milsons_point": "#D2232A",
+    "woolworths":       "#007D40",
+    "coles":            "#E31A2F",
+    "harris_farm":      "#F27200",
     "iga_north_sydney": "#D2232A",
+    "iga_milsons_point":"#D2232A",
+    "iga_crows_nest":   "#D2232A",
+}
+
+# Full store details — real name, street address, Google Maps link
+STORE_INFO = {
+    "woolworths": {
+        "full_name": "Woolworths",
+        "address":   None,
+        "maps_url":  None,
+        "website":   "https://www.woolworths.com.au",
+    },
+    "coles": {
+        "full_name": "Coles",
+        "address":   None,
+        "maps_url":  None,
+        "website":   "https://www.coles.com.au",
+    },
+    "harris_farm": {
+        "full_name": "Harris Farm Markets",
+        "address":   "Cammeray · Mosman · Lane Cove · Broadway",
+        "maps_url":  "https://www.harrisfarm.com.au/pages/store-locations",
+        "website":   "https://www.harrisfarm.com.au",
+    },
+    "iga_north_sydney": {
+        "full_name": "Romeo's IGA Greenwood Plaza",
+        "address":   "Greenwood Plaza, 36 Blue St, North Sydney NSW 2060",
+        "maps_url":  "https://maps.google.com/?q=Romeo's+IGA+Greenwood+Plaza,+36+Blue+St,+North+Sydney+NSW+2060",
+        "website":   "https://www.igashop.com.au",
+    },
+    "iga_milsons_point": {
+        "full_name": "IGA Local Grocer Milsons Point",
+        "address":   "6 Alfred St S, Milsons Point NSW 2061",
+        "maps_url":  "https://maps.google.com/?q=IGA+Local+Grocer,+6+Alfred+St+S,+Milsons+Point+NSW+2061",
+        "website":   "https://www.igashop.com.au",
+    },
+    "iga_crows_nest": {
+        "full_name": "IGA Greenwich",
+        "address":   "204 Greenwich Rd, Greenwich NSW 2065",
+        "maps_url":  "https://maps.google.com/?q=IGA+Greenwich,+204+Greenwich+Rd,+Greenwich+NSW+2065",
+        "website":   "https://www.igashop.com.au",
+    },
 }
 
 
@@ -590,6 +630,7 @@ def _is_processed(name: str, category: str | None) -> bool:
 
 templates.env.globals["store_label"] = lambda s: STORE_LABELS.get(_store_key(s), _store_key(s).replace("_", " ").title())
 templates.env.globals["store_color"] = lambda s: STORE_COLORS.get(_store_key(s), "#666")
+templates.env.globals["store_info"]  = lambda s: STORE_INFO.get(_store_key(s), {})
 templates.env.globals["time_ago"] = _time_ago
 templates.env.globals["sparkline_points"] = _sparkline_points
 templates.env.globals["now"] = datetime.utcnow
@@ -1093,6 +1134,7 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
             "query": q,
             "store_labels": STORE_LABELS,
             "store_colors": STORE_COLORS,
+            "store_info":   STORE_INFO,
             "selected_stores": [],
         })
 
@@ -1137,12 +1179,13 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
             selected_stores = [s.strip() for s in pref.stores.split(",") if s.strip()]
 
     return templates.TemplateResponse(request, "partials/suburb_stores.html", {
-        "matches": matches,
+        "matches":          matches,
         "per_suburb_slugs": per_suburb_slugs,
-        "query": q,
-        "store_labels": STORE_LABELS,
-        "store_colors": STORE_COLORS,
-        "selected_stores": selected_stores,
+        "query":            q,
+        "store_labels":     STORE_LABELS,
+        "store_colors":     STORE_COLORS,
+        "store_info":       STORE_INFO,
+        "selected_stores":  selected_stores,
     })
 
 

@@ -7,13 +7,13 @@
 {% else %}
   <div class="mb-3">
     <p class="text-xs text-gray-500 leading-snug">
-      Stores near
-      <strong class="text-gray-700">{{ matches | list | join(', ') }}</strong>
+      Stores near <strong class="text-gray-700">{{ matches | list | join(', ') }}</strong>
     </p>
   </div>
 
   {% for suburb_name, slugs in matches.items() %}
-  {# Build display_stores: collapse all iga_* into one IGA entry #}
+
+  {# Split slugs into non-IGA and IGA groups #}
   {% set display_stores = [] %}
   {% set iga_slugs = [] %}
   {% for slug in slugs %}
@@ -36,52 +36,111 @@
       {% for store in display_stores %}
 
       {% if store.iga_slugs is defined %}
-      {# IGA row #}
+      {# ── IGA group: one row per IGA store, each with real name + address ── #}
       {% set any_iga_selected = false %}
       {% for s in store.iga_slugs %}{% if s in selected_stores %}{% set any_iga_selected = true %}{% endif %}{% endfor %}
+
       <li data-iga-slugs='{{ store.iga_slugs | tojson }}'
-          class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 select-none"
-          style="{{ 'background:#fef2f2' if any_iga_selected else '' }}">
-        <span class="store-checkbox w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
-              style="{{ 'background:#D2232A; border-color:#D2232A' if any_iga_selected else 'background:#fff; border-color:#d1d5db' }}">
-          <svg class="store-checkmark w-2.5 h-2.5 text-white" style="{{ '' if any_iga_selected else 'display:none' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-          </svg>
-        </span>
-        <span class="w-2 h-2 rounded-full shrink-0" style="background:#D2232A"></span>
-        <div class="flex-1 min-w-0">
-          <span class="text-xs font-semibold text-gray-800">IGA</span>
-          <span class="text-[10px] text-gray-400 ml-1">({{ store.iga_slugs | length }})</span>
-          <div class="flex flex-wrap gap-x-2 mt-0.5">
-            {% for iga_slug in store.iga_slugs %}
-            <span class="text-[10px] text-gray-400 leading-tight">{{ store_labels[iga_slug] | replace('IGA ', '') }}</span>
-            {% endfor %}
+          class="rounded-xl border transition-all cursor-pointer select-none overflow-hidden"
+          style="{{ 'border-color:#D2232A20; background:#fff5f5' if any_iga_selected else 'border-color:#f3f4f6; background:white' }}">
+
+        {# IGA header row (click toggles all IGA slugs) #}
+        <div class="flex items-center gap-2.5 px-2.5 py-2">
+          <span class="store-checkbox w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                style="{{ 'background:#D2232A; border-color:#D2232A' if any_iga_selected else 'background:#fff; border-color:#d1d5db' }}">
+            <svg class="store-checkmark w-2.5 h-2.5 text-white" style="{{ '' if any_iga_selected else 'display:none' }}"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+            </svg>
+          </span>
+          <span class="w-2 h-2 rounded-full shrink-0" style="background:#D2232A"></span>
+          <span class="text-xs font-bold text-gray-800">IGA</span>
+          <span class="text-[10px] text-gray-400">({{ store.iga_slugs | length }} store{{ 's' if store.iga_slugs|length != 1 }})</span>
+        </div>
+
+        {# Individual IGA store rows with real name + address + maps link #}
+        <div class="border-t border-gray-50 divide-y divide-gray-50">
+          {% for iga_slug in store.iga_slugs %}
+          {% set info = store_info.get(iga_slug, {}) %}
+          {% set full_name = info.get('full_name', store_labels[iga_slug]) %}
+          {% set address   = info.get('address', '') %}
+          {% set maps_url  = info.get('maps_url', '') %}
+          <div class="flex items-start gap-2 px-3 py-2.5 bg-gray-50/50">
+            <div class="flex-1 min-w-0">
+              <p class="text-[11px] font-semibold text-gray-700 leading-tight">{{ full_name }}</p>
+              {% if address %}
+              <p class="text-[10px] text-gray-400 mt-0.5 leading-snug">{{ address }}</p>
+              {% endif %}
+            </div>
+            {% if maps_url %}
+            <a href="{{ maps_url }}" target="_blank" rel="noopener"
+               onclick="event.stopPropagation()"
+               class="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-brand hover:text-brand-dark bg-brand-light hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors whitespace-nowrap mt-0.5"
+               title="Open in Google Maps">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              Map
+            </a>
+            {% endif %}
           </div>
+          {% endfor %}
         </div>
       </li>
 
       {% else %}
-      {# Regular store row #}
+      {# ── Regular store row (Woolworths, Coles, Harris Farm) ── #}
       {% set is_sel = store.slug in selected_stores %}
+      {% set info = store_info.get(store.slug, {}) %}
+      {% set full_name = info.get('full_name', store.label) %}
+      {% set address   = info.get('address', '') %}
+      {% set maps_url  = info.get('maps_url', '') %}
+
       <li data-store-slug="{{ store.slug }}"
           data-store-color="{{ store.color }}"
-          class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 select-none"
-          style="{{ 'background:' + store.color + '10' if is_sel else '' }}">
-        <span class="store-checkbox w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
-              style="{{ 'background:' + store.color + '; border-color:' + store.color if is_sel else 'background:#fff; border-color:#d1d5db' }}">
-          <svg class="store-checkmark w-2.5 h-2.5 text-white" style="{{ '' if is_sel else 'display:none' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-          </svg>
-        </span>
-        <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ store.color }}"></span>
-        <span class="text-xs font-semibold text-gray-800 truncate">{{ store.label }}</span>
+          class="rounded-xl border transition-all cursor-pointer select-none overflow-hidden"
+          style="{{ 'border-color:' + store.color + '30; background:' + store.color + '08' if is_sel else 'border-color:#f3f4f6; background:white' }}">
+
+        <div class="flex items-start gap-2.5 px-2.5 py-2.5">
+          <span class="store-checkbox w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5"
+                style="{{ 'background:' + store.color + '; border-color:' + store.color if is_sel else 'background:#fff; border-color:#d1d5db' }}">
+            <svg class="store-checkmark w-2.5 h-2.5 text-white" style="{{ '' if is_sel else 'display:none' }}"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+            </svg>
+          </span>
+          <span class="w-2 h-2 rounded-full shrink-0 mt-1.5" style="background:{{ store.color }}"></span>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-gray-800 leading-tight">{{ full_name }}</p>
+            {% if address %}
+            <p class="text-[10px] text-gray-400 mt-0.5 leading-snug">{{ address }}</p>
+            {% endif %}
+          </div>
+          {% if maps_url %}
+          <a href="{{ maps_url }}" target="_blank" rel="noopener"
+             onclick="event.stopPropagation()"
+             class="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-brand hover:text-brand-dark bg-brand-light hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors whitespace-nowrap mt-0.5"
+             title="Open in Google Maps">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Map
+          </a>
+          {% endif %}
+        </div>
       </li>
       {% endif %}
 
       {% endfor %}
     </ul>
 
-    <div class="flex gap-2 mt-1.5 px-2.5">
+    <div class="flex gap-2 mt-2 px-1">
       <button type="button"
         data-select-slugs='{{ this_slugs | tojson }}'
         class="text-[10px] text-brand hover:text-brand-dark font-semibold transition-colors">
