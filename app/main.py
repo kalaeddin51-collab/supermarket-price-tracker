@@ -261,9 +261,13 @@ STORE_LABELS = {
     "woolworths":       "Woolworths",
     "coles":            "Coles",
     "harris_farm":      "Harris Farm",
+    # Lower North Shore IGAs
     "iga_north_sydney": "Romeo's IGA",
     "iga_milsons_point":"IGA Milsons Pt",
     "iga_crows_nest":   "IGA Greenwich",
+    # Inner West / Newtown IGAs
+    "iga_newtown":      "Lloyds IGA",
+    "iga_king_st":      "IGA King St",
 }
 
 STORE_COLORS = {
@@ -273,6 +277,8 @@ STORE_COLORS = {
     "iga_north_sydney": "#D2232A",
     "iga_milsons_point":"#D2232A",
     "iga_crows_nest":   "#D2232A",
+    "iga_newtown":      "#D2232A",
+    "iga_king_st":      "#D2232A",
 }
 
 # Full store details — real name, street address, Google Maps link
@@ -291,10 +297,11 @@ STORE_INFO = {
     },
     "harris_farm": {
         "full_name": "Harris Farm Markets",
-        "address":   "Cammeray · Mosman · Lane Cove · Broadway",
+        "address":   "Multiple locations — see map for nearest store",
         "maps_url":  "https://www.harrisfarm.com.au/pages/store-locations",
         "website":   "https://www.harrisfarm.com.au",
     },
+    # Lower North Shore
     "iga_north_sydney": {
         "full_name": "Romeo's IGA Greenwood Plaza",
         "address":   "Greenwood Plaza, 36 Blue St, North Sydney NSW 2060",
@@ -313,12 +320,59 @@ STORE_INFO = {
         "maps_url":  "https://maps.google.com/?q=IGA+Greenwich,+204+Greenwich+Rd,+Greenwich+NSW+2065",
         "website":   "https://www.igashop.com.au",
     },
+    # Inner West / Newtown
+    "iga_newtown": {
+        "full_name": "Lloyds IGA Newtown",
+        "address":   "259 King St, Newtown NSW 2042",
+        "maps_url":  "https://maps.google.com/?q=Lloyds+IGA,+259+King+St,+Newtown+NSW+2042",
+        "website":   "https://www.igashop.com.au",
+    },
+    "iga_king_st": {
+        "full_name": "IGA Local Grocer King Street",
+        "address":   "40 King St, Newtown NSW 2042",
+        "maps_url":  "https://maps.google.com/?q=IGA+Local+Grocer,+40+King+St,+Newtown+NSW+2042",
+        "website":   "https://www.igashop.com.au",
+    },
+}
+
+# Suburb → nearest Harris Farm store (for suburb-aware display in store selector)
+# Keys are lowercase suburb names matching SUBURB_STORES keys
+HARRIS_FARM_NEAREST = {
+    # Inner West — Broadway store
+    "newtown":       {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "erskineville":  {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "enmore":        {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "leichhardt":    {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "annandale":     {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "glebe":         {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "forest lodge":  {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "ultimo":        {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "pyrmont":       {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "stanmore":      {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "petersham":     {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "rozelle":       {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    "lilyfield":     {"name": "Harris Farm Broadway",  "address": "Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007", "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+Broadway+Shopping+Centre+NSW"},
+    # Lower North Shore — Cammeray store
+    "cammeray":      {"name": "Harris Farm Cammeray",  "address": "397 Miller St, Cammeray NSW 2062",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+397+Miller+St+Cammeray+NSW"},
+    "north sydney":  {"name": "Harris Farm Cammeray",  "address": "397 Miller St, Cammeray NSW 2062",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+397+Miller+St+Cammeray+NSW"},
+    "neutral bay":   {"name": "Harris Farm Cammeray",  "address": "397 Miller St, Cammeray NSW 2062",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+397+Miller+St+Cammeray+NSW"},
+    "crows nest":    {"name": "Harris Farm Cammeray",  "address": "397 Miller St, Cammeray NSW 2062",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+397+Miller+St+Cammeray+NSW"},
+    "st leonards":   {"name": "Harris Farm Cammeray",  "address": "397 Miller St, Cammeray NSW 2062",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+397+Miller+St+Cammeray+NSW"},
+    # Mosman store
+    "mosman":        {"name": "Harris Farm Mosman",    "address": "765 Military Rd, Mosman NSW 2088",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+765+Military+Rd+Mosman+NSW"},
+    "cremorne":      {"name": "Harris Farm Mosman",    "address": "765 Military Rd, Mosman NSW 2088",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+765+Military+Rd+Mosman+NSW"},
+    "balmoral":      {"name": "Harris Farm Mosman",    "address": "765 Military Rd, Mosman NSW 2088",                     "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+765+Military+Rd+Mosman+NSW"},
+    # Lane Cove store
+    "lane cove":     {"name": "Harris Farm Lane Cove", "address": "65 Burns Bay Rd, Lane Cove NSW 2066",                  "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+65+Burns+Bay+Rd+Lane+Cove+NSW"},
+    "linfield":      {"name": "Harris Farm Lane Cove", "address": "65 Burns Bay Rd, Lane Cove NSW 2066",                  "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+65+Burns+Bay+Rd+Lane+Cove+NSW"},
+    "longueville":   {"name": "Harris Farm Lane Cove", "address": "65 Burns Bay Rd, Lane Cove NSW 2066",                  "maps_url": "https://maps.google.com/?q=Harris+Farm+Markets+65+Burns+Bay+Rd+Lane+Cove+NSW"},
 }
 
 
 ALL_STORE_SLUGS = [
     "woolworths", "coles", "harris_farm",
     "iga_north_sydney", "iga_milsons_point", "iga_crows_nest",
+    "iga_newtown", "iga_king_st",
 ]
 
 
@@ -337,6 +391,10 @@ async def _search_one_store(store_slug: str, query: str):
             from app.scrapers.iga import IGAMilsonsPointScraper as Cls
         elif store_slug == "iga_crows_nest":
             from app.scrapers.iga import IGACrowsNestScraper as Cls
+        elif store_slug == "iga_newtown":
+            from app.scrapers.iga import IGANewtownScraper as Cls
+        elif store_slug == "iga_king_st":
+            from app.scrapers.iga import IGAKingStreetScraper as Cls
         else:
             return None
         scraper = Cls()
@@ -1130,12 +1188,13 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
 
     if not direct_keys:
         return templates.TemplateResponse(request, "partials/suburb_stores.html", {
-            "matches": {},
-            "query": q,
-            "store_labels": STORE_LABELS,
-            "store_colors": STORE_COLORS,
-            "store_info":   STORE_INFO,
+            "matches":        {},
+            "query":          q,
+            "store_labels":   STORE_LABELS,
+            "store_colors":   STORE_COLORS,
+            "store_info":     STORE_INFO,
             "selected_stores": [],
+            "hf_nearest":     {},
         })
 
     # Step 3 — for each direct match expand to 5 km radius and union stores
@@ -1178,6 +1237,16 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
         if pref and pref.stores:
             selected_stores = [s.strip() for s in pref.stores.split(",") if s.strip()]
 
+    # Build suburb-aware Harris Farm info: keyed by display name
+    hf_nearest: dict[str, dict] = {}
+    for key in direct_keys:
+        display = key.title() if not key.isdigit() else (
+            f"{key} — {POSTCODE_NAMES.get(key, '')}" if POSTCODE_NAMES.get(key) else key
+        )
+        info = HARRIS_FARM_NEAREST.get(key.lower())
+        if info:
+            hf_nearest[display] = info
+
     return templates.TemplateResponse(request, "partials/suburb_stores.html", {
         "matches":          matches,
         "per_suburb_slugs": per_suburb_slugs,
@@ -1186,6 +1255,7 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
         "store_colors":     STORE_COLORS,
         "store_info":       STORE_INFO,
         "selected_stores":  selected_stores,
+        "hf_nearest":       hf_nearest,
     })
 
 
@@ -1240,15 +1310,20 @@ async def search_results(
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
     from app.scrapers.harris_farm import HarrisFarmScraper
-    from app.scrapers.iga import IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper
+    from app.scrapers.iga import (
+        IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper,
+        IGANewtownScraper, IGAKingStreetScraper,
+    )
 
     _scraper_map = {
-        "woolworths":       WoolworthsScraper,
-        "coles":            ColesScraper,
-        "harris_farm":      HarrisFarmScraper,
-        "iga_north_sydney": IGANorthSydneyScraper,
+        "woolworths":        WoolworthsScraper,
+        "coles":             ColesScraper,
+        "harris_farm":       HarrisFarmScraper,
+        "iga_north_sydney":  IGANorthSydneyScraper,
         "iga_milsons_point": IGAMilsonsPointScraper,
-        "iga_crows_nest":   IGACrowsNestScraper,
+        "iga_crows_nest":    IGACrowsNestScraper,
+        "iga_newtown":       IGANewtownScraper,
+        "iga_king_st":       IGAKingStreetScraper,
     }
 
     tasks = []

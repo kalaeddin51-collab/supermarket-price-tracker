@@ -32,15 +32,21 @@ HEADERS = {
 }
 
 STORE_IDS = {
-    "iga_north_sydney":  21283,
-    "iga_milsons_point": 239417,
-    "iga_crows_nest":    19133,   # Greenwich — nearest to Crows Nest
+    # Lower North Shore
+    "iga_north_sydney":  21283,    # Romeo's IGA, Greenwood Plaza
+    "iga_milsons_point": 239417,   # IGA Local Grocer Milsons Point
+    "iga_crows_nest":    19133,    # IGA Greenwich (nearest to Crows Nest)
+    # Inner West / Newtown
+    "iga_newtown":       8863,     # Lloyds IGA Newtown, 259 King St
+    "iga_king_st":       95625,    # IGA Local Grocer King Street, 40 King St
 }
 
 STORE_DISPLAY = {
-    "iga_north_sydney":  "IGA North Sydney",
-    "iga_milsons_point": "IGA Milsons Point",
+    "iga_north_sydney":  "Romeo's IGA Greenwood Plaza",
+    "iga_milsons_point": "IGA Local Grocer Milsons Point",
     "iga_crows_nest":    "IGA Greenwich",
+    "iga_newtown":       "Lloyds IGA Newtown",
+    "iga_king_st":       "IGA Local Grocer King Street",
 }
 
 
@@ -267,3 +273,13 @@ class IGAMilsonsPointScraper(IGAScraper):
 class IGACrowsNestScraper(IGAScraper):
     """Maps to IGA Greenwich — the nearest IGA to Crows Nest."""
     store_slug = "iga_crows_nest"
+
+
+class IGANewtownScraper(IGAScraper):
+    """Lloyds IGA Newtown, 259 King St."""
+    store_slug = "iga_newtown"
+
+
+class IGAKingStreetScraper(IGAScraper):
+    """IGA Local Grocer King Street, 40 King St, Newtown."""
+    store_slug = "iga_king_st"

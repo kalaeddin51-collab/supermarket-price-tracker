@@ -13,6 +13,8 @@ _HF = "harris_farm"
 _IN = "iga_north_sydney"
 _IM = "iga_milsons_point"
 _IC = "iga_crows_nest"
+_INW = "iga_newtown"    # Lloyds IGA Newtown, 259 King St
+_IKS = "iga_king_st"   # IGA Local Grocer King Street, 40 King St
 
 SUBURB_STORES: dict[str, list[str]] = {
 
@@ -89,22 +91,22 @@ SUBURB_STORES: dict[str, list[str]] = {
     "balmain east":         [_W, _C, _HF],
     "birchgrove":           [_W, _C, _HF],
     "2041":                 [_W, _C, _HF],
-    "newtown":              [_W, _C, _HF],
-    "erskineville":         [_W, _C, _HF],
-    "2042":                 [_W, _C, _HF],
-    "enmore":               [_W, _C, _HF],
-    "st peters":            [_W, _C, _HF],
-    "sydenham":             [_W, _C],
+    "newtown":              [_W, _C, _HF, _INW, _IKS],
+    "erskineville":         [_W, _C, _HF, _INW, _IKS],
+    "2042":                 [_W, _C, _HF, _INW, _IKS],
+    "enmore":               [_W, _C, _HF, _INW, _IKS],
+    "st peters":            [_W, _C, _HF, _INW],
+    "sydenham":             [_W, _C, _INW],
     "tempe":                [_W, _C],
-    "2044":                 [_W, _C, _HF],
-    "leichhardt":           [_W, _C, _HF],
-    "annandale":            [_W, _C, _HF],
-    "2040":                 [_W, _C, _HF],
-    "petersham":            [_W, _C, _HF],
-    "lewisham":             [_W, _C],
-    "stanmore":             [_W, _C, _HF],
-    "2048":                 [_W, _C, _HF],
-    "marrickville":         [_W, _C, _HF],
+    "2044":                 [_W, _C, _HF, _INW],
+    "leichhardt":           [_W, _C, _HF, _INW],
+    "annandale":            [_W, _C, _HF, _INW],
+    "2040":                 [_W, _C, _HF, _INW],
+    "petersham":            [_W, _C, _HF, _INW],
+    "lewisham":             [_W, _C, _INW],
+    "stanmore":             [_W, _C, _HF, _INW, _IKS],
+    "2048":                 [_W, _C, _HF, _INW, _IKS],
+    "marrickville":         [_W, _C, _HF, _INW],
     "dulwich hill":         [_W, _C, _HF],
     "2204":                 [_W, _C, _HF],
     "ashfield":             [_W, _C, _HF],

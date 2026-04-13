@@ -95,9 +95,17 @@
       {# ── Regular store row (Woolworths, Coles, Harris Farm) ── #}
       {% set is_sel = store.slug in selected_stores %}
       {% set info = store_info.get(store.slug, {}) %}
-      {% set full_name = info.get('full_name', store.label) %}
-      {% set address   = info.get('address', '') %}
-      {% set maps_url  = info.get('maps_url', '') %}
+      {# For Harris Farm, use suburb-aware nearest store info if available #}
+      {% if store.slug == 'harris_farm' and hf_nearest is defined and suburb_name in hf_nearest %}
+        {% set hf_info   = hf_nearest[suburb_name] %}
+        {% set full_name = hf_info.get('name', info.get('full_name', store.label)) %}
+        {% set address   = hf_info.get('address', info.get('address', '')) %}
+        {% set maps_url  = hf_info.get('maps_url', info.get('maps_url', '')) %}
+      {% else %}
+        {% set full_name = info.get('full_name', store.label) %}
+        {% set address   = info.get('address', '') %}
+        {% set maps_url  = info.get('maps_url', '') %}
+      {% endif %}
 
       <li data-store-slug="{{ store.slug }}"
           data-store-color="{{ store.color }}"
