@@ -86,52 +86,18 @@
           <p class="text-xs text-blue-700" x-text="smtp"></p>
         </div>
 
-        <!-- Resend API key (recommended — works on Railway) -->
+        <!-- Resend API key -->
         <div class="mt-4 pt-4 border-t border-gray-50">
-          <div class="flex items-center gap-2 mb-2">
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Resend API Key</label>
-            <span class="text-[10px] font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Recommended</span>
-          </div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Resend API Key</label>
           <p class="text-xs text-gray-400 mb-2">
-            Works on Railway &amp; all cloud hosts (uses HTTPS, not blocked SMTP ports).
-            Free at <a href="https://resend.com" target="_blank" class="text-brand hover:underline">resend.com</a>
-            — 3,000 emails/month. Get your key from the
-            <a href="https://resend.com/api-keys" target="_blank" class="text-brand hover:underline">API Keys page</a>.
+            Get your free key at <a href="https://resend.com/api-keys" target="_blank" class="text-brand hover:underline">resend.com/api-keys</a>
+            — 3,000 emails/month free.
           </p>
           <input type="password" name="resend_api_key"
             placeholder="{{ '●●●●●●●● (saved)' if ns.resend_api_key else 're_xxxxxxxxxxxxxxxxxxxx' }}"
             autocomplete="new-password"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
-          <p class="text-xs text-gray-400 mt-1">Leave blank to keep the saved key. When set, Resend is used instead of SMTP.</p>
-        </div>
-
-        <!-- SMTP credentials (fallback for local/self-hosted) -->
-        <div class="mt-4 pt-4 border-t border-gray-50">
-          <div class="flex items-center gap-2 mb-3">
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">SMTP credentials</label>
-            <span class="text-[10px] font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Fallback — blocked on Railway</span>
-          </div>
-          <div class="space-y-2">
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Sending email address</label>
-              <input type="email" name="smtp_user" value="{{ ns.smtp_user or ns.email_address or '' }}"
-                placeholder="you@yahoo.com"
-                class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">
-                App password
-                <a href="https://help.yahoo.com/kb/generate-third-party-passwords-sln15241.html" target="_blank" class="text-brand hover:underline ml-1">Yahoo</a> ·
-                <a href="https://support.google.com/accounts/answer/185833" target="_blank" class="text-brand hover:underline">Gmail</a> ·
-                <a href="https://support.microsoft.com/en-us/account-billing/using-app-passwords-with-apps-that-don-t-support-two-step-verification-5896ed9b-4263-e681-128a-a6f2979a7944" target="_blank" class="text-brand hover:underline">Outlook</a>
-              </label>
-              <input type="password" name="smtp_password"
-                placeholder="{{ '●●●●●●●● (saved)' if ns.smtp_password else 'Enter app password…' }}"
-                autocomplete="new-password"
-                class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
-              <p class="text-xs text-gray-400 mt-1">Leave blank to keep the existing saved password. Stored locally only.</p>
-            </div>
-          </div>
+          <p class="text-xs text-gray-400 mt-1">Leave blank to keep the saved key.</p>
         </div>
       </div>
     </div>
@@ -142,7 +108,7 @@
       <div class="px-5 py-4 flex items-center justify-between gap-4">
         <div>
           <p class="text-sm font-semibold text-gray-800">Send a test email</p>
-          <p class="text-xs text-gray-500 mt-0.5">Verify your SMTP credentials are working correctly.</p>
+          <p class="text-xs text-gray-500 mt-0.5">Sends a sample watchlist email to your configured recipients.</p>
         </div>
         <button type="button"
           :disabled="loading"
