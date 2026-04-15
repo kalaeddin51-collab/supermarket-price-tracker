@@ -821,7 +821,8 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
         if ok:
             return JSONResponse({"ok": True, "message": f"Test email sent to {', '.join(recipients)} ✅"})
         else:
-            return JSONResponse({"ok": False, "error": "SMTP send failed — check your app password and that 'Less secure apps' or App Passwords are enabled on your email provider."})
+            detail = getattr(send_digest, "_last_error", "") or "unknown error"
+            return JSONResponse({"ok": False, "error": f"SMTP failed: {detail}"})
     except Exception as exc:
         print(f"[api/send-test-email] Unexpected error: {exc}")
         return JSONResponse({"ok": False, "error": f"Server error: {exc}"})
@@ -1854,10 +1855,10 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
             f'</div>'
         )
     else:
-        detail = f" ({err_detail})" if err_detail else " — see server console for details."
+        smtp_detail = getattr(send_digest, "_last_error", "") or err_detail or "unknown error"
         return HTMLResponse(
             f'<div class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 text-red-800 text-sm">'
-            f'❌ Send failed{detail}'
+            f'❌ SMTP failed: {smtp_detail}'
             f'</div>'
         )
 

@@ -56,6 +56,7 @@ def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
 
     server = None
     sent = False
+    last_error: str = ""
     try:
         server = smtplib.SMTP(host, port, timeout=20)
         server.ehlo()
@@ -66,16 +67,23 @@ def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
         server.send_message(msg)
         print(f"[email] Sent '{subject}' to {recipients}")
         sent = True
+    except smtplib.SMTPAuthenticationError as exc:
+        last_error = f"Authentication failed ({exc.smtp_code}): {exc.smtp_error.decode(errors='replace') if isinstance(exc.smtp_error, bytes) else exc.smtp_error}"
+        print(f"[email] Auth error: {last_error}")
+    except smtplib.SMTPException as exc:
+        last_error = f"SMTP error: {exc}"
+        print(f"[email] SMTP error: {exc}")
     except Exception as exc:
+        last_error = f"{type(exc).__name__}: {exc}"
         print(f"[email] Send failed: {exc}")
-        sent = False
     finally:
-        # Yahoo (and some others) drop the connection after QUIT — ignore close errors
         if server is not None:
             try:
                 server.quit()
             except Exception:
                 pass
+    # Attach last error so callers can surface it
+    send_digest._last_error = last_error  # type: ignore[attr-defined]
     return sent
 
 
