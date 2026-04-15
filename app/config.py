@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,3 +47,17 @@ def get_scraperapi_key() -> str:
 def set_scraperapi_key(key: str) -> None:
     global _scraperapi_key_runtime
     _scraperapi_key_runtime = key
+
+
+# ── Resend API key runtime cache ──────────────────────────────────────────────
+_resend_key_runtime: str = ""
+
+
+def get_resend_key() -> str:
+    """Return Resend API key: runtime/DB value → env var → config file."""
+    return _resend_key_runtime or settings.resend_api_key or os.environ.get("RESEND_API_KEY", "")
+
+
+def set_resend_key(key: str) -> None:
+    global _resend_key_runtime
+    _resend_key_runtime = key

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 import bcrypt
 
-from app.config import settings, get_scraperapi_key, set_scraperapi_key
+from app.config import settings, get_scraperapi_key, set_scraperapi_key, get_resend_key, set_resend_key
 from app.database import get_db, init_db
 from app import models
 from app.suburbs import SUBURB_STORES, ALL_SUBURBS, POSTCODE_NAMES
@@ -790,21 +790,18 @@ async def get_suburb(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/api/send-test-email", response_class=JSONResponse)
 async def send_test_email(request: Request, db: Session = Depends(get_db)):
-    """Send a test digest email using the saved SMTP settings."""
-    import os, asyncio
+    """Send a test digest email using Resend API."""
     try:
         ns = db.query(models.NotificationSettings).first()
         if not ns or not ns.email_address:
-            return JSONResponse({"ok": False, "error": "No recipient email configured in Settings — add an address in the Email Notifications section above."})
-
-        if not ns.smtp_user or not ns.smtp_password:
-            return JSONResponse({"ok": False, "error": "SMTP credentials not saved — enter your sending email and app password in Settings and click Save first."})
+            return JSONResponse({"ok": False, "error": "No recipient email configured — add one in the Email Notifications section in Settings."})
 
         recipients = [a for a in [ns.email_address, ns.email_address_2, ns.email_address_3] if a]
 
         from app.notifiers.email import send_digest, build_digest_html
 
-        resend_key = (ns.resend_api_key or "").strip() or settings.resend_api_key or os.getenv("RESEND_API_KEY", "")
+        # Priority: DB value → runtime cache → env var → config
+        resend_key = (ns.resend_api_key or "").strip() or get_resend_key()
 
         if resend_key:
             # Resend path — works on Railway (HTTPS, no port blocking)
@@ -1140,8 +1137,8 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         for slug in _stores_for_suburb(user_suburb)
     ]
 
-    # Check if Resend key is available from env var (persists across deploys)
-    resend_from_env = bool(settings.resend_api_key or os.getenv("RESEND_API_KEY", ""))
+    # Check if Resend key is available from env var / runtime cache (persists across deploys)
+    resend_from_env = bool(get_resend_key())
 
     return templates.TemplateResponse(request, "settings.html", {
         "ns": ns,
@@ -1711,6 +1708,7 @@ async def save_settings(
     # Only overwrite keys if a new value was actually submitted
     if resend_api_key:
         ns.resend_api_key = resend_api_key
+        set_resend_key(resend_api_key)  # cache in memory so it survives within this process
     ns.smtp_user      = smtp_user     or None
     if smtp_password:
         ns.smtp_password = smtp_password
@@ -1733,7 +1731,7 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     ns = db.query(models.NotificationSettings).first()
 
     recipients = [r for r in [ns.email_address, ns.email_address_2, ns.email_address_3] if r]
-    resend_key = (ns.resend_api_key or "").strip() or settings.resend_api_key or os.getenv("RESEND_API_KEY", "")
+    resend_key = (ns.resend_api_key or "").strip() or get_resend_key()
     smtp_user  = ns.smtp_user or ""
     smtp_pass  = ns.smtp_password or ""
 
