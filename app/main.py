@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 from datetime import datetime, timedelta
 from typing import Optional
@@ -803,7 +804,7 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
 
         from app.notifiers.email import send_digest, build_digest_html
 
-        resend_key = ns.resend_api_key or os.getenv("RESEND_API_KEY", "")
+        resend_key = (ns.resend_api_key or "").strip() or settings.resend_api_key or os.getenv("RESEND_API_KEY", "")
 
         if resend_key:
             # Resend path — works on Railway (HTTPS, no port blocking)
@@ -1139,12 +1140,16 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         for slug in _stores_for_suburb(user_suburb)
     ]
 
+    # Check if Resend key is available from env var (persists across deploys)
+    resend_from_env = bool(settings.resend_api_key or os.getenv("RESEND_API_KEY", ""))
+
     return templates.TemplateResponse(request, "settings.html", {
         "ns": ns,
         "notify_days_list": notify_days_list,
         "day_names": day_names,
         "page": "settings",
         "store_options": store_options,
+        "resend_from_env": resend_from_env,
     })
 
 
@@ -1728,7 +1733,7 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     ns = db.query(models.NotificationSettings).first()
 
     recipients = [r for r in [ns.email_address, ns.email_address_2, ns.email_address_3] if r]
-    resend_key = (ns.resend_api_key or "").strip() or os.getenv("RESEND_API_KEY", "")
+    resend_key = (ns.resend_api_key or "").strip() or settings.resend_api_key or os.getenv("RESEND_API_KEY", "")
     smtp_user  = ns.smtp_user or ""
     smtp_pass  = ns.smtp_password or ""
 
