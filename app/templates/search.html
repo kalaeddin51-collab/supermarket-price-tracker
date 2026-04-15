@@ -13,7 +13,7 @@
 
   <!-- Store filter + search input + price filter + brand filter, Alpine manages state -->
   <div x-data="{
-         activeStore: '{{ store or "all" }}',
+         activeStore: 'all',
          priceMin: '',
          priceMax: '',
          sortOrder: '{{ default_sort or "" }}',
@@ -23,7 +23,11 @@
          activeCategory: '',
          subcategories: [],
          triggerSearch() {
-           document.getElementById('store-input').value = this.activeStore;
+           // Only override store-input when a specific pill is selected.
+           // When 'all', keep the initial value (the user's saved suburb stores).
+           if (this.activeStore !== 'all') {
+             document.getElementById('store-input').value = this.activeStore;
+           }
            document.getElementById('price-min-input').value = this.priceMin;
            document.getElementById('price-max-input').value = this.priceMax;
            document.getElementById('sort-input').value = this.sortOrder;
@@ -66,10 +70,10 @@
          $watch('priceMax',    () => triggerSearch());
          $watch('sortOrder',   () => triggerSearch());
          $watch('freshOnly',   () => triggerSearch());
-         // Auto-load results if default store or sort is set and there's a query
+         // Auto-load results if there's a pre-filled query in the URL
          $nextTick(() => {
            const q = document.getElementById('search-input').value.trim();
-           if (q.length >= 2 && (sortOrder !== '' || activeStore !== 'all' || activeStore.includes(','))) {
+           if (q.length >= 2) {
              triggerSearch();
            }
          });
@@ -95,7 +99,7 @@
       ('coles',       '#E31A2F'),
       ('harris_farm', '#F27200'),
     ] %}
-    {% set all_iga_slugs = ['iga_north_sydney', 'iga_milsons_point', 'iga_crows_nest'] %}
+    {% set all_iga_slugs = ['iga_north_sydney', 'iga_milsons_point', 'iga_crows_nest', 'iga_newtown', 'iga_king_st'] %}
 
     {# Collect non-IGA and IGA slugs separately so we can consolidate IGA into one pill #}
     {% set ns = namespace(non_iga=[], iga_slugs=[]) %}
@@ -151,10 +155,10 @@
       {% if ns.iga_slugs %}
       <button type="button"
         @click="activeStore = '{{ iga_store_val }}'"
-        :class="activeStore.includes('iga_')
+        :class="activeStore === '{{ iga_store_val }}'
           ? 'text-white shadow-sm'
           : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
-        :style="activeStore.includes('iga_') ? 'background:#D2232A' : ''"
+        :style="activeStore === '{{ iga_store_val }}' ? 'background:#D2232A' : ''"
         class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all">
         IGA{{ suburb_suffix }}
       </button>
