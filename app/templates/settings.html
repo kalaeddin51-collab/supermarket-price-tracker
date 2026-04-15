@@ -290,7 +290,7 @@
           <p class="text-xs text-gray-500">No notifications during these hours</p>
         </div>
       </div>
-      <div class="px-5 py-4 flex items-center gap-4">
+      <div class="px-5 py-4 flex flex-wrap items-end gap-3">
         <div>
           <label class="block text-xs text-gray-500 mb-1">From</label>
           <select name="quiet_hours_start"
@@ -301,7 +301,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="text-gray-400 mt-4">→</div>
+        <div class="text-gray-400 pb-2">→</div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">Until</label>
           <select name="quiet_hours_end"
@@ -312,7 +312,7 @@
             {% endfor %}
           </select>
         </div>
-        <p class="text-xs text-gray-400 mt-4 ml-2">AEST</p>
+        <p class="text-xs text-gray-400 pb-2">AEST</p>
       </div>
     </div>
 
@@ -571,9 +571,9 @@
     </div>
 
     <!-- ── Save button ────────────────────────────────────────────────── -->
-    <div class="flex items-center justify-between pt-1">
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
       <div id="test-email-result"></div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <button type="button"
           hx-post="/settings/test-email"
           hx-target="#test-email-result"

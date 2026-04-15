@@ -315,16 +315,16 @@
             hx-target="#items-list"
             hx-swap="beforeend"
             @htmx:after-request="$el.reset()">
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <input type="text" name="name" placeholder="Item name (e.g. full cream milk)"
                  required autocomplete="off"
-                 class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+                 class="flex-1 min-w-[180px] border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
           <input type="number" name="qty" value="1" min="0.1" step="0.1" placeholder="Qty"
                  class="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
           <input type="text" name="unit" placeholder="unit"
                  class="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
           <button type="submit"
-                  class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+                  class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors min-h-[40px]">
             Add
           </button>
         </div>

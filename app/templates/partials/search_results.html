@@ -117,10 +117,10 @@
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-200 overflow-hidden">
 
         {# ── Card header: image + name + group actions ── #}
-        <div class="flex items-start gap-4 p-4">
+        <div class="flex items-start gap-3 p-3 sm:p-4">
 
           {# Product image #}
-          <div class="w-[72px] h-[72px] rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
+          <div class="w-14 h-14 sm:w-[72px] sm:h-[72px] rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
             {% if g.image_url %}
             <img src="{{ g.image_url }}" alt="{{ g.canonical }}" class="w-full h-full object-contain p-1.5" onerror="this.parentElement.innerHTML='<svg class=\'w-8 h-8 text-gray-200\' fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\'/></svg>'">
             {% else %}
@@ -177,7 +177,7 @@
           {% for r in g.entries %}
           {# best_store is set by backend based on lowest per-unit price #}
           {% set is_best = g.best_store is not none and r.store == g.best_store and g.entries|length > 1 %}
-          <div class="flex items-center gap-3 px-4 py-3 relative
+          <div class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 relative
             {{ 'bg-emerald-50/40' if is_best else '' }}
             {% if not loop.last %}border-b border-gray-50{% endif %}">
 
@@ -185,56 +185,56 @@
             <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400 rounded-r"></div>
             {% endif %}
 
-            {# Store name #}
-            <div class="w-36 flex-shrink-0 flex items-center gap-2 pl-2">
+            {# Store name — narrower on mobile #}
+            <div class="w-20 sm:w-36 flex-shrink-0 flex items-center gap-1.5 pl-1.5">
               {% if is_best %}
-              <svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
               {% else %}
-              <div class="w-3.5 flex-shrink-0"></div>
+              <div class="w-3 sm:w-3.5 flex-shrink-0"></div>
               {% endif %}
               <span class="text-xs font-semibold {{ 'text-emerald-700' if is_best else 'text-gray-600' }} truncate">
                 {{ store_label(r.store) }}
               </span>
             </div>
 
-            {# Pack price + size — shown together so user can see what they're buying #}
-            <div class="w-28 flex-shrink-0">
+            {# Pack price + size #}
+            <div class="w-16 sm:w-28 flex-shrink-0">
               {% if r.price %}
-              <div class="flex items-baseline gap-1.5">
-                <span class="text-base font-bold {{ 'text-emerald-700' if is_best else 'text-gray-800' }} leading-none">
+              <div class="flex items-baseline gap-1">
+                <span class="text-sm sm:text-base font-bold {{ 'text-emerald-700' if is_best else 'text-gray-800' }} leading-none">
                   ${{ "%.2f"|format(r.price) }}
                 </span>
                 {% if r.was_price is defined and r.was_price and r.was_price > r.price %}
-                <span class="text-[11px] text-gray-400 line-through">${{ "%.2f"|format(r.was_price) }}</span>
+                <span class="hidden sm:inline text-[11px] text-gray-400 line-through">${{ "%.2f"|format(r.was_price) }}</span>
                 {% endif %}
               </div>
               {% if r.unit %}
-              <div class="text-[11px] text-gray-400 mt-0.5 font-medium">{{ r.unit }}</div>
+              <div class="hidden sm:block text-[11px] text-gray-400 mt-0.5 font-medium">{{ r.unit }}</div>
               {% endif %}
               {% else %}
-              <span class="text-xs text-gray-400 italic">Unavailable</span>
+              <span class="text-xs text-gray-400 italic">N/A</span>
               {% endif %}
             </div>
 
-            {# Per-unit price — the true comparison metric, shown prominently #}
-            <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+            {# Per-unit price — hidden on smallest screens, shown sm+ #}
+            <div class="flex-1 min-w-0 hidden xs:flex sm:flex items-center gap-1.5 flex-wrap">
               {% if r._pu_label %}
               <span class="text-xs font-semibold {{ 'text-emerald-600' if is_best else 'text-gray-400' }}">
                 {{ r._pu_label }}
               </span>
               {% endif %}
               {% if is_best and g.has_savings %}
-              <span class="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md">best/unit</span>
+              <span class="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md hidden sm:inline">best/unit</span>
               {% endif %}
               {% if r.on_special is defined and r.on_special %}
               <span class="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md">SPECIAL</span>
               {% endif %}
             </div>
 
-            {# Per-store actions: Watch + View #}
-            <div class="flex items-center gap-2 flex-shrink-0">
+            {# Actions — Watch always visible, View hidden on mobile #}
+            <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
               <form hx-post="/partials/watchlist/add"
                 hx-target="#cwatch-{{ r.store }}-{{ r.external_id }}"
                 hx-swap="outerHTML"
@@ -247,13 +247,13 @@
                 <input type="hidden" name="unit"         value="{{ r.unit or '' }}">
                 <input type="hidden" name="image_url"    value="{{ r.image_url or '' }}">
                 <button id="cwatch-{{ r.store }}-{{ r.external_id }}" type="submit"
-                  class="text-[11px] font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/40 bg-white hover:bg-brand-light px-2.5 py-1.5 rounded-lg transition-all">
+                  class="text-xs font-medium text-gray-500 hover:text-brand border border-gray-200 hover:border-brand/40 bg-white hover:bg-brand-light px-2.5 py-2 rounded-lg transition-all min-h-[36px]">
                   ☆ Watch
                 </button>
               </form>
 
               <a href="{{ r.url }}" target="_blank" rel="noopener"
-                class="flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap">
+                class="hidden sm:flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 px-2.5 py-2 rounded-lg transition-all whitespace-nowrap">
                 View
                 <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>

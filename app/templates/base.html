@@ -98,11 +98,11 @@
     }
   </script>
 </head>
-<body class="min-h-full bg-gray-50 text-gray-800">
+<body class="min-h-full bg-gray-50 text-gray-800 overflow-x-hidden">
 
   <!-- ── Navigation ──────────────────────────────────────────────────── -->
   <nav class="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-    <div class="max-w-5xl mx-auto px-4 flex items-center h-14 gap-4">
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 flex items-center h-14 gap-2 sm:gap-4">
 
       <!-- Brand -->
       <a href="/" class="flex items-center gap-2 shrink-0 group">
@@ -149,9 +149,9 @@
           ('/settings', 'settings', 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', 'Settings'),
         ] %}
         {% for href, key, icon_path, label in nav_items %}
-        <a href="{{ href }}" class="nav-link flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+        <a href="{{ href }}" class="nav-link flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium min-h-[44px]
           {% if page == key %}bg-brand-light text-brand{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5 sm:w-4 sm:h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon_path }}"/>
           </svg>
           <span class="hidden sm:inline">{{ label }}</span>
@@ -189,7 +189,7 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- ── Main content ────────────────────────────────────────────────── -->
-  <main class="max-w-5xl mx-auto px-4 py-7">
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-7">
     {% block content %}{% endblock %}
   </main>
 

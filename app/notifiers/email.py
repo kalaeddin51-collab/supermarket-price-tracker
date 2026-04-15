@@ -27,10 +27,6 @@ SMTP_PRESETS = {
     "icloud.com":      ("smtp.mail.me.com",        587),
 }
 
-# Will be set by the caller so both endpoints share the last error string
-send_digest._last_error = ""  # type: ignore[attr-defined]
-
-
 def smtp_config_for(email: str) -> tuple[str, int]:
     """Return (host, port) for the given email address, or fall back to env vars."""
     domain = email.split("@")[-1].lower() if "@" in email else ""
