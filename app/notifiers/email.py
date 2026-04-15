@@ -1,4 +1,13 @@
-"""SMTP email sender with auto-configuration for Gmail, Yahoo, Hotmail."""
+"""
+Email sender — tries Resend HTTP API first, falls back to SMTP.
+
+Resend (https://resend.com) works on Railway and any cloud host because it
+uses HTTPS (port 443) instead of SMTP ports (587/465) which are blocked by
+most cloud providers to prevent spam.
+
+SMTP fallback is kept for self-hosted / local deployments where port 587
+is available.
+"""
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -18,31 +27,62 @@ SMTP_PRESETS = {
     "icloud.com":      ("smtp.mail.me.com",        587),
 }
 
+# Will be set by the caller so both endpoints share the last error string
+send_digest._last_error = ""  # type: ignore[attr-defined]
+
 
 def smtp_config_for(email: str) -> tuple[str, int]:
     """Return (host, port) for the given email address, or fall back to env vars."""
     domain = email.split("@")[-1].lower() if "@" in email else ""
     if domain in SMTP_PRESETS:
         return SMTP_PRESETS[domain]
-    # Fall back to environment overrides
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     port = int(os.getenv("SMTP_PORT", "587"))
     return host, port
 
 
-def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
-    """
-    Send an HTML email to one or more recipients.
-    Credentials come from environment variables:
-      SMTP_USER     — the sending email address (defaults to first recipient)
-      SMTP_PASSWORD — app password / OAuth token
-    Returns True on success, False on failure.
-    """
+def _send_via_resend(api_key: str, subject: str, html_body: str,
+                     from_addr: str, recipients: list[str]) -> bool:
+    """Send via Resend HTTP API — works on Railway (HTTPS only, port 443)."""
+    import httpx
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type":  "application/json",
+            },
+            json={
+                "from":    from_addr,
+                "to":      recipients,
+                "subject": subject,
+                "html":    html_body,
+            },
+            timeout=20,
+        )
+        if resp.status_code in (200, 201):
+            print(f"[email/resend] Sent '{subject}' to {recipients}")
+            send_digest._last_error = ""  # type: ignore[attr-defined]
+            return True
+        else:
+            err = f"Resend API error {resp.status_code}: {resp.text[:300]}"
+            print(f"[email/resend] {err}")
+            send_digest._last_error = err  # type: ignore[attr-defined]
+            return False
+    except Exception as exc:
+        err = f"{type(exc).__name__}: {exc}"
+        print(f"[email/resend] Exception: {err}")
+        send_digest._last_error = err  # type: ignore[attr-defined]
+        return False
+
+
+def _send_via_smtp(subject: str, html_body: str, recipients: list[str]) -> bool:
+    """Send via SMTP — works on local/self-hosted, blocked on most cloud hosts."""
     smtp_user = os.getenv("SMTP_USER") or (recipients[0] if recipients else "")
     smtp_pass = os.getenv("SMTP_PASSWORD", "")
 
     if not smtp_user or not smtp_pass:
-        print("[email] SMTP_USER or SMTP_PASSWORD not set — skipping send")
+        send_digest._last_error = "SMTP_USER or SMTP_PASSWORD not set"  # type: ignore[attr-defined]
         return False
 
     host, port = smtp_config_for(smtp_user)
@@ -55,47 +95,62 @@ def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     server = None
-    sent = False
-    last_error: str = ""
     try:
         server = smtplib.SMTP(host, port, timeout=20)
         server.ehlo()
         server.starttls()
         server.ehlo()
         server.login(smtp_user, smtp_pass)
-        # send_message handles UTF-8 / emoji encoding correctly on all platforms
         server.send_message(msg)
-        print(f"[email] Sent '{subject}' to {recipients}")
-        sent = True
+        print(f"[email/smtp] Sent '{subject}' to {recipients}")
+        send_digest._last_error = ""  # type: ignore[attr-defined]
+        return True
     except smtplib.SMTPAuthenticationError as exc:
-        last_error = f"Authentication failed ({exc.smtp_code}): {exc.smtp_error.decode(errors='replace') if isinstance(exc.smtp_error, bytes) else exc.smtp_error}"
-        print(f"[email] Auth error: {last_error}")
-    except smtplib.SMTPException as exc:
-        last_error = f"SMTP error: {exc}"
-        print(f"[email] SMTP error: {exc}")
+        err = f"Auth failed ({exc.smtp_code}): {exc.smtp_error.decode(errors='replace') if isinstance(exc.smtp_error, bytes) else exc.smtp_error}"
+        print(f"[email/smtp] {err}")
+        send_digest._last_error = err  # type: ignore[attr-defined]
+        return False
     except Exception as exc:
-        last_error = f"{type(exc).__name__}: {exc}"
-        print(f"[email] Send failed: {exc}")
+        err = f"{type(exc).__name__}: {exc}"
+        print(f"[email/smtp] {err}")
+        send_digest._last_error = err  # type: ignore[attr-defined]
+        return False
     finally:
         if server is not None:
             try:
                 server.quit()
             except Exception:
                 pass
-    # Attach last error so callers can surface it
-    send_digest._last_error = last_error  # type: ignore[attr-defined]
-    return sent
+
+
+def send_digest(subject: str, html_body: str, recipients: list[str],
+                resend_api_key: str | None = None,
+                resend_from: str = "Price Tracker <onboarding@resend.dev>") -> bool:
+    """
+    Send an HTML email.  Tries Resend first if an API key is supplied,
+    otherwise falls back to SMTP via env vars SMTP_USER / SMTP_PASSWORD.
+
+    Returns True on success, False on failure.
+    Sets send_digest._last_error with a human-readable failure reason.
+    """
+    send_digest._last_error = ""  # type: ignore[attr-defined]
+
+    if resend_api_key:
+        return _send_via_resend(resend_api_key, subject, html_body, resend_from, recipients)
+
+    # No Resend key — try SMTP
+    return _send_via_smtp(subject, html_body, recipients)
 
 
 def build_digest_html(items: list[dict]) -> str:
     """Build a simple HTML email body from a list of alert dicts."""
     rows = ""
     for item in items:
-        product  = item["product"]
-        event    = item["event"]
-        old_p    = f"${event.old_price:.2f}" if event.old_price else "—"
-        new_p    = f"${event.new_price:.2f}" if event.new_price else "—"
-        trigger  = event.trigger_type.replace("_", " ").title()
+        product = item["product"]
+        event   = item["event"]
+        old_p   = f"${event.old_price:.2f}" if event.old_price else "—"
+        new_p   = f"${event.new_price:.2f}" if event.new_price else "—"
+        trigger = event.trigger_type.replace("_", " ").title()
         rows += f"""
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
@@ -127,7 +182,7 @@ def build_digest_html(items: list[dict]) -> str:
     <tbody>{rows}</tbody>
   </table>
   <p style="font-size:11px;color:#9ca3af;margin-top:16px;text-align:center">
-    Price Tracker · North Sydney · Manage alerts at http://localhost:8000/settings
+    Price Tracker · Manage alerts in the app settings
   </p>
 </body>
 </html>"""

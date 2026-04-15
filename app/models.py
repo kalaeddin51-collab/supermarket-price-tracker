@@ -139,6 +139,9 @@ class NotificationSettings(Base):
     poll_frequency: Mapped[str] = mapped_column(String(20), default="weekly")   # "daily" | "weekly"
     poll_day: Mapped[int] = mapped_column(Integer, default=0)                   # 0=Mon … 6=Sun
 
+    # Resend API key (https://resend.com — works on Railway, no SMTP port needed)
+    resend_api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # SMTP credentials (stored locally — never leave this machine)
     smtp_user: Mapped[str | None] = mapped_column(String(254), nullable=True)
     smtp_password: Mapped[str | None] = mapped_column(String(500), nullable=True)

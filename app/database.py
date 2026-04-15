@@ -56,6 +56,7 @@ def _migrate_columns():
         ("notification_settings", "poll_day",         "INTEGER"),
         ("notification_settings", "smtp_user",        "VARCHAR(254)"),
         ("notification_settings", "smtp_password",    "VARCHAR(500)"),
+        ("notification_settings", "resend_api_key",   "VARCHAR(500)"),
         ("notification_settings", "scraperapi_key",   "VARCHAR(200)"),
         ("watchlist",             "user_id",          "INTEGER"),
         ("shopping_lists",        "user_id",          "INTEGER"),

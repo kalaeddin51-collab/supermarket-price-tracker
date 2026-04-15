@@ -801,28 +801,46 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
 
         recipients = [a for a in [ns.email_address, ns.email_address_2, ns.email_address_3] if a]
 
-        # Always use DB-stored credentials (direct assignment overrides any stale env vars)
-        os.environ["SMTP_USER"]     = ns.smtp_user
-        os.environ["SMTP_PASSWORD"] = ns.smtp_password
-
         from app.notifiers.email import send_digest, build_digest_html
-        html = build_digest_html([])
-        html = html.replace(
-            "<tbody></tbody>",
-            "<tbody><tr><td colspan='4' style='padding:16px;text-align:center;color:#059669;font-weight:600'>"
-            "✅ Test email from Price Tracker — everything is working!</td></tr></tbody>"
-        )
 
-        # Run blocking SMTP in a thread so the event loop isn't stalled
-        loop = asyncio.get_event_loop()
-        ok = await loop.run_in_executor(
-            None, lambda: send_digest("Price Tracker — Test Email", html, recipients)
-        )
+        resend_key = ns.resend_api_key or os.getenv("RESEND_API_KEY", "")
+
+        if resend_key:
+            # Resend path — works on Railway (HTTPS, no port blocking)
+            html = build_digest_html([])
+            html = html.replace(
+                "<tbody></tbody>",
+                "<tbody><tr><td colspan='4' style='padding:16px;text-align:center;color:#059669;font-weight:600'>"
+                "✅ Test email from Price Tracker — everything is working!</td></tr></tbody>"
+            )
+            loop = asyncio.get_event_loop()
+            ok = await loop.run_in_executor(
+                None, lambda: send_digest("Price Tracker — Test Email", html, recipients,
+                                          resend_api_key=resend_key)
+            )
+        elif ns.smtp_user and ns.smtp_password:
+            # SMTP fallback — may be blocked on Railway
+            os.environ["SMTP_USER"]     = ns.smtp_user
+            os.environ["SMTP_PASSWORD"] = ns.smtp_password
+            html = build_digest_html([])
+            html = html.replace(
+                "<tbody></tbody>",
+                "<tbody><tr><td colspan='4' style='padding:16px;text-align:center;color:#059669;font-weight:600'>"
+                "✅ Test email from Price Tracker — everything is working!</td></tr></tbody>"
+            )
+            loop = asyncio.get_event_loop()
+            ok = await loop.run_in_executor(
+                None, lambda: send_digest("Price Tracker — Test Email", html, recipients)
+            )
+        else:
+            return JSONResponse({"ok": False, "error": "No email method configured — add a Resend API key in Settings (recommended) or SMTP credentials."})
+
         if ok:
-            return JSONResponse({"ok": True, "message": f"Test email sent to {', '.join(recipients)} ✅"})
+            method = "Resend" if resend_key else "SMTP"
+            return JSONResponse({"ok": True, "message": f"Test email sent via {method} to {', '.join(recipients)} ✅"})
         else:
             detail = getattr(send_digest, "_last_error", "") or "unknown error"
-            return JSONResponse({"ok": False, "error": f"SMTP failed: {detail}"})
+            return JSONResponse({"ok": False, "error": f"Send failed: {detail}"})
     except Exception as exc:
         print(f"[api/send-test-email] Unexpected error: {exc}")
         return JSONResponse({"ok": False, "error": f"Server error: {exc}"})
@@ -1655,6 +1673,7 @@ async def save_settings(
     notify_on_special: Optional[str] = Form(None),
     poll_frequency: str = Form("weekly"),
     poll_day: int = Form(0),
+    resend_api_key: str = Form(""),
     smtp_user: str = Form(""),
     smtp_password: str = Form(""),
     default_sort: str = Form(""),
@@ -1684,8 +1703,10 @@ async def save_settings(
     ns.notify_on_special    = notify_on_special    == "on"
     ns.poll_frequency = poll_frequency
     ns.poll_day       = poll_day
+    # Only overwrite keys if a new value was actually submitted
+    if resend_api_key:
+        ns.resend_api_key = resend_api_key
     ns.smtp_user      = smtp_user     or None
-    # Only overwrite password if a new one was actually submitted
     if smtp_password:
         ns.smtp_password = smtp_password
     ns.default_sort  = default_sort  or ""
@@ -1702,29 +1723,33 @@ async def save_settings(
 
 @app.post("/settings/test-email", response_class=HTMLResponse)
 async def test_email(request: Request, db: Session = Depends(get_db)):
-    from app.notifiers.email import send_digest, smtp_config_for
+    import os, asyncio
+    from app.notifiers.email import send_digest
     ns = db.query(models.NotificationSettings).first()
 
-    smtp_user = ns.smtp_user or ""
-    smtp_pass = ns.smtp_password or ""
     recipients = [r for r in [ns.email_address, ns.email_address_2, ns.email_address_3] if r]
+    resend_key = (ns.resend_api_key or "").strip() or os.getenv("RESEND_API_KEY", "")
+    smtp_user  = ns.smtp_user or ""
+    smtp_pass  = ns.smtp_password or ""
 
-    if not smtp_user or not smtp_pass:
-        return HTMLResponse(
-            '<div class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm">'
-            '⚠️ SMTP credentials not saved. Enter your sending email and app password in the SMTP section above and save first.'
-            '</div>'
-        )
     if not recipients:
         return HTMLResponse(
             '<div class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm">'
-            '⚠️ No recipient email address configured.'
+            '⚠️ No recipient email address configured — add one in the Email Notifications section above.'
             '</div>'
         )
 
-    import os, asyncio
-    os.environ["SMTP_USER"]     = smtp_user
-    os.environ["SMTP_PASSWORD"] = smtp_pass
+    if not resend_key and (not smtp_user or not smtp_pass):
+        return HTMLResponse(
+            '<div class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm">'
+            '⚠️ No email method configured. Add a <strong>Resend API key</strong> (recommended — works on Railway) '
+            'or SMTP credentials, then Save Settings first.'
+            '</div>'
+        )
+
+    if smtp_user and smtp_pass and not resend_key:
+        os.environ["SMTP_USER"]     = smtp_user
+        os.environ["SMTP_PASSWORD"] = smtp_pass
 
     # Build watchlist snapshot (scoped to requesting user)
     _uid = request.session.get("user_id")
@@ -1841,7 +1866,9 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     try:
         loop = asyncio.get_event_loop()
         subj = f"🛒 Price Tracker — Watchlist ({len(entries)} items)"
-        ok = await loop.run_in_executor(None, lambda: send_digest(subj, html, recipients))
+        _rk  = resend_key or None
+        ok = await loop.run_in_executor(None, lambda: send_digest(subj, html, recipients,
+                                                                   resend_api_key=_rk))
         err_detail = ""
     except Exception as exc:
         ok = False
@@ -1849,16 +1876,17 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
         print(f"[test-email] Exception: {exc}")
 
     if ok:
+        method = "Resend" if resend_key else "SMTP"
         return HTMLResponse(
             f'<div class="rounded-xl px-4 py-3 bg-green-50 border border-green-200 text-green-800 text-sm">'
-            f'✅ Test email sent to <strong>{", ".join(recipients)}</strong> — check your inbox!'
+            f'✅ Test email sent via {method} to <strong>{", ".join(recipients)}</strong> — check your inbox!'
             f'</div>'
         )
     else:
-        smtp_detail = getattr(send_digest, "_last_error", "") or err_detail or "unknown error"
+        detail = getattr(send_digest, "_last_error", "") or err_detail or "unknown error"
         return HTMLResponse(
             f'<div class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 text-red-800 text-sm">'
-            f'❌ SMTP failed: {smtp_detail}'
+            f'❌ Send failed: {detail}'
             f'</div>'
         )
 
