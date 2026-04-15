@@ -790,29 +790,41 @@ async def get_suburb(request: Request, db: Session = Depends(get_db)):
 @app.post("/api/send-test-email", response_class=JSONResponse)
 async def send_test_email(request: Request, db: Session = Depends(get_db)):
     """Send a test digest email using the saved SMTP settings."""
-    import os
-    ns = db.query(models.NotificationSettings).first()
-    if not ns or not ns.email_address:
-        return JSONResponse({"ok": False, "error": "No recipient email configured in Settings."})
+    import os, asyncio
+    try:
+        ns = db.query(models.NotificationSettings).first()
+        if not ns or not ns.email_address:
+            return JSONResponse({"ok": False, "error": "No recipient email configured in Settings — add an address in the Email Notifications section above."})
 
-    recipients = [a for a in [ns.email_address, ns.email_address_2, ns.email_address_3] if a]
+        if not ns.smtp_user or not ns.smtp_password:
+            return JSONResponse({"ok": False, "error": "SMTP credentials not saved — enter your sending email and app password in Settings and click Save first."})
 
-    # Use DB-stored credentials if env vars not set
-    if ns.smtp_user:
-        os.environ.setdefault("SMTP_USER", ns.smtp_user)
-    if ns.smtp_password:
-        os.environ.setdefault("SMTP_PASSWORD", ns.smtp_password)
+        recipients = [a for a in [ns.email_address, ns.email_address_2, ns.email_address_3] if a]
 
-    from app.notifiers.email import send_digest, build_digest_html
-    # Build a sample digest
-    html = build_digest_html([])  # empty — just a connectivity test
-    # Override with a simple test body
-    html = html.replace("<tbody></tbody>", "<tbody><tr><td colspan='4' style='padding:16px;text-align:center;color:#059669;font-weight:600'>✅ Test email from Price Tracker — everything is working!</td></tr></tbody>")
-    ok = send_digest("Price Tracker — Test Email", html, recipients)
-    if ok:
-        return JSONResponse({"ok": True, "message": f"Test email sent to {', '.join(recipients)}"})
-    else:
-        return JSONResponse({"ok": False, "error": "Send failed — check your SMTP credentials in Settings."})
+        # Always use DB-stored credentials (direct assignment overrides any stale env vars)
+        os.environ["SMTP_USER"]     = ns.smtp_user
+        os.environ["SMTP_PASSWORD"] = ns.smtp_password
+
+        from app.notifiers.email import send_digest, build_digest_html
+        html = build_digest_html([])
+        html = html.replace(
+            "<tbody></tbody>",
+            "<tbody><tr><td colspan='4' style='padding:16px;text-align:center;color:#059669;font-weight:600'>"
+            "✅ Test email from Price Tracker — everything is working!</td></tr></tbody>"
+        )
+
+        # Run blocking SMTP in a thread so the event loop isn't stalled
+        loop = asyncio.get_event_loop()
+        ok = await loop.run_in_executor(
+            None, lambda: send_digest("Price Tracker — Test Email", html, recipients)
+        )
+        if ok:
+            return JSONResponse({"ok": True, "message": f"Test email sent to {', '.join(recipients)} ✅"})
+        else:
+            return JSONResponse({"ok": False, "error": "SMTP send failed — check your app password and that 'Less secure apps' or App Passwords are enabled on your email provider."})
+    except Exception as exc:
+        print(f"[api/send-test-email] Unexpected error: {exc}")
+        return JSONResponse({"ok": False, "error": f"Server error: {exc}"})
 
 
 @app.post("/api/send-test-push", response_class=JSONResponse)
@@ -1709,7 +1721,7 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
             '</div>'
         )
 
-    import os
+    import os, asyncio
     os.environ["SMTP_USER"]     = smtp_user
     os.environ["SMTP_PASSWORD"] = smtp_pass
 
@@ -1826,7 +1838,9 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
 </html>"""
 
     try:
-        ok = send_digest(f"🛒 Price Tracker — Watchlist ({len(entries)} items)", html, recipients)
+        loop = asyncio.get_event_loop()
+        subj = f"🛒 Price Tracker — Watchlist ({len(entries)} items)"
+        ok = await loop.run_in_executor(None, lambda: send_digest(subj, html, recipients))
         err_detail = ""
     except Exception as exc:
         ok = False

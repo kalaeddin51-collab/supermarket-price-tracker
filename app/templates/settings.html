@@ -125,10 +125,10 @@
         <button type="button"
           :disabled="loading"
           @click="loading = true; result = null;
-            fetch('/api/send-test-email', {method:'POST'})
+            fetch('/api/send-test-email', {method:'POST', credentials:'same-origin'})
               .then(r => r.json())
               .then(d => { result = d; loading = false; })
-              .catch(e => { result = {ok:false,error:'Network error'}; loading = false; })"
+              .catch(e => { result = {ok:false,error:'Network error — ' + e.message}; loading = false; })"
           class="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-all
                  bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1.5">
           <svg x-show="!loading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

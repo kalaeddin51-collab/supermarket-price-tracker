@@ -54,8 +54,10 @@ def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
     msg["To"]      = ", ".join(recipients)
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    server = smtplib.SMTP(host, port, timeout=15)
+    server = None
+    sent = False
     try:
+        server = smtplib.SMTP(host, port, timeout=20)
         server.ehlo()
         server.starttls()
         server.ehlo()
@@ -69,10 +71,11 @@ def send_digest(subject: str, html_body: str, recipients: list[str]) -> bool:
         sent = False
     finally:
         # Yahoo (and some others) drop the connection after QUIT — ignore close errors
-        try:
-            server.quit()
-        except Exception:
-            pass
+        if server is not None:
+            try:
+                server.quit()
+            except Exception:
+                pass
     return sent
 
 
