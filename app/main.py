@@ -2621,25 +2621,18 @@ async def email_shopping_list(
     db: Session = Depends(get_db),
 ):
     """Send a price-comparison email for a shopping list."""
-    import os
+    import asyncio
     from app.notifiers.email import send_digest
     from app.notifiers.shopping_email import build_shopping_list_html
+    from app.config import get_resend_key
 
     ns = db.query(models.NotificationSettings).first()
-    smtp_user = (ns.smtp_user if ns else None) or os.getenv("SMTP_USER", "")
-    smtp_pass = (ns.smtp_password if ns else None) or os.getenv("SMTP_PASSWORD", "")
     recipients = [r for r in [
         ns.email_address if ns else None,
         getattr(ns, "email_address_2", None) if ns else None,
         getattr(ns, "email_address_3", None) if ns else None,
     ] if r]
 
-    if not smtp_user or not smtp_pass:
-        return HTMLResponse(
-            '<div id="email-feedback" class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 '
-            'text-amber-800 text-sm mt-3">⚠️ SMTP credentials not configured. '
-            'Go to <a href="/settings" class="underline">Settings</a> and enter your email and app password.</div>'
-        )
     if not recipients:
         return HTMLResponse(
             '<div id="email-feedback" class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 '
@@ -2655,13 +2648,16 @@ async def email_shopping_list(
     if not sl:
         raise HTTPException(404)
 
-    os.environ["SMTP_USER"]     = smtp_user
-    os.environ["SMTP_PASSWORD"] = smtp_pass
-
     app_url = str(request.base_url).rstrip("/")
     html    = build_shopping_list_html(sl.name, sl.items, app_url)
     subject = f"Shopping List — {sl.name} ({len(sl.items)} items)"
-    ok      = send_digest(subject, html, recipients)
+
+    resend_key = (getattr(ns, "resend_api_key", None) or "").strip() or get_resend_key()
+    loop = asyncio.get_event_loop()
+    if resend_key:
+        ok = await loop.run_in_executor(None, lambda: send_digest(subject, html, recipients, resend_api_key=resend_key))
+    else:
+        ok = await loop.run_in_executor(None, lambda: send_digest(subject, html, recipients))
 
     if ok:
         to_str = ", ".join(recipients)
@@ -2669,10 +2665,11 @@ async def email_shopping_list(
             f'<div id="email-feedback" class="rounded-xl px-4 py-3 bg-emerald-50 border border-emerald-200 '
             f'text-emerald-800 text-sm mt-3">✓ Email sent to {to_str}</div>'
         )
+    from app.notifiers.email import send_digest as _sd
+    err = getattr(_sd, "_last_error", "") or "check your email settings"
     return HTMLResponse(
-        '<div id="email-feedback" class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 '
-        'text-red-700 text-sm mt-3">✗ Failed to send email. Check your SMTP settings in '
-        '<a href="/settings" class="underline">Settings</a>.</div>'
+        f'<div id="email-feedback" class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 '
+        f'text-red-700 text-sm mt-3">✗ Failed to send — {err}</div>'
     )
 
 
@@ -2681,25 +2678,18 @@ async def email_shopping_list(
 @app.post("/watchlist/email", response_class=HTMLResponse)
 async def email_watchlist(request: Request, db: Session = Depends(get_db)):
     """Send a watchlist price-snapshot email."""
-    import os
+    import asyncio
     from app.notifiers.email import send_digest
     from app.notifiers.shopping_email import build_watchlist_html
+    from app.config import get_resend_key
 
     ns = db.query(models.NotificationSettings).first()
-    smtp_user = (ns.smtp_user if ns else None) or os.getenv("SMTP_USER", "")
-    smtp_pass = (ns.smtp_password if ns else None) or os.getenv("SMTP_PASSWORD", "")
     recipients = [r for r in [
         ns.email_address if ns else None,
         getattr(ns, "email_address_2", None) if ns else None,
         getattr(ns, "email_address_3", None) if ns else None,
     ] if r]
 
-    if not smtp_user or not smtp_pass:
-        return HTMLResponse(
-            '<div id="wl-email-feedback" class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 '
-            'text-amber-800 text-sm mt-3">⚠️ SMTP credentials not configured. '
-            'Go to <a href="/settings" class="underline">Settings</a> first.</div>'
-        )
     if not recipients:
         return HTMLResponse(
             '<div id="wl-email-feedback" class="rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 '
@@ -2726,14 +2716,17 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
             "prev":    history[1] if len(history) > 1 else None,
         })
 
-    os.environ["SMTP_USER"]     = smtp_user
-    os.environ["SMTP_PASSWORD"] = smtp_pass
-
     app_url = str(request.base_url).rstrip("/")
     html    = build_watchlist_html(entries_data, app_url)
     n       = len(entries_data)
     subject = f"Watchlist — Price Snapshot ({n} product{'s' if n != 1 else ''})"
-    ok      = send_digest(subject, html, recipients)
+
+    resend_key = (getattr(ns, "resend_api_key", None) or "").strip() or get_resend_key()
+    loop = asyncio.get_event_loop()
+    if resend_key:
+        ok = await loop.run_in_executor(None, lambda: send_digest(subject, html, recipients, resend_api_key=resend_key))
+    else:
+        ok = await loop.run_in_executor(None, lambda: send_digest(subject, html, recipients))
 
     if ok:
         to_str = ", ".join(recipients)
@@ -2741,10 +2734,11 @@ async def email_watchlist(request: Request, db: Session = Depends(get_db)):
             f'<div id="wl-email-feedback" class="rounded-xl px-4 py-3 bg-emerald-50 border border-emerald-200 '
             f'text-emerald-800 text-sm mt-3">✓ Watchlist email sent to {to_str}</div>'
         )
+    from app.notifiers.email import send_digest as _sd
+    err = getattr(_sd, "_last_error", "") or "check your email settings"
     return HTMLResponse(
-        '<div id="wl-email-feedback" class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 '
-        'text-red-700 text-sm mt-3">✗ Failed to send email. Check your SMTP settings in '
-        '<a href="/settings" class="underline">Settings</a>.</div>'
+        f'<div id="wl-email-feedback" class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 '
+        f'text-red-700 text-sm mt-3">✗ Failed to send — {err}</div>'
     )
 
 
