@@ -1521,13 +1521,20 @@ async def watchlist_add(
     words = name.split()
     search_q = " ".join(words[:3]) if len(words) >= 3 else name
 
-    cross_results = await asyncio.gather(
-        *[_search_one_store(s, search_q) for s in other_stores]
-    )
+    try:
+        cross_results = await asyncio.wait_for(
+            asyncio.gather(
+                *[_search_one_store(s, search_q) for s in other_stores],
+                return_exceptions=True,
+            ),
+            timeout=20.0,  # cap cross-store search at 20 s
+        )
+    except (asyncio.TimeoutError, Exception):
+        cross_results = []
 
     stores_added = [store]  # primary store already added
     for result in cross_results:
-        if result is None or not result.name:
+        if result is None or isinstance(result, BaseException) or not getattr(result, 'name', None):
             continue
         if not _names_similar(name, result.name):
             continue
