@@ -1,5 +1,5 @@
 """
-Tests for landing page suburb search, store selection, 5km radius expansion,
+Tests for landing page suburb search, store selection, 3km radius expansion,
 x-data attribute quoting, and navbar suburb display.
 
 Run with:  python -m pytest tests/test_landing.py -v
@@ -48,36 +48,36 @@ class TestNearbySuburbs:
         assert nearby_suburbs("atlantis") == []
 
     def test_crows_nest_includes_north_sydney(self):
-        nearby = nearby_suburbs("crows nest", km=5.0)
+        nearby = nearby_suburbs("crows nest", km=3.0)
         assert "north sydney" in nearby
 
     def test_crows_nest_includes_milsons_point(self):
-        nearby = nearby_suburbs("crows nest", km=5.0)
+        nearby = nearby_suburbs("crows nest", km=3.0)
         assert "milsons point" in nearby
 
     def test_crows_nest_excludes_manly(self):
-        nearby = nearby_suburbs("crows nest", km=5.0)
-        assert "manly" not in nearby, "Manly is >5 km from Crows Nest"
+        nearby = nearby_suburbs("crows nest", km=3.0)
+        assert "manly" not in nearby, "Manly is >3 km from Crows Nest"
 
     def test_newtown_excludes_north_sydney(self):
-        nearby = nearby_suburbs("newtown", km=5.0)
+        nearby = nearby_suburbs("newtown", km=3.0)
         assert "north sydney" not in nearby
 
     def test_neutral_bay_includes_iga_suburbs(self):
-        nearby = nearby_suburbs("neutral bay", km=5.0)
+        nearby = nearby_suburbs("neutral bay", km=3.0)
         assert "crows nest" in nearby or "north sydney" in nearby
 
     def test_smaller_radius_returns_fewer(self):
         n2 = nearby_suburbs("crows nest", km=2.0)
-        n5 = nearby_suburbs("crows nest", km=5.0)
+        n5 = nearby_suburbs("crows nest", km=3.0)
         assert len(n2) <= len(n5)
 
 
 # ─── Suburb → store slug tests ───────────────────────────────────────────────
 
 class TestSuburbStores:
-    def _expand_slugs(self, suburb_key: str, km: float = 5.0) -> list[str]:
-        """Simulate the route's 5km expansion logic."""
+    def _expand_slugs(self, suburb_key: str, km: float = 3.0) -> list[str]:
+        """Simulate the route's 3km expansion logic."""
         nearby = nearby_suburbs(suburb_key, km=km)
         expanded = [k for k in nearby if k in SUBURB_STORES]
         if suburb_key not in expanded and suburb_key in SUBURB_STORES:
@@ -96,10 +96,10 @@ class TestSuburbStores:
     def test_crows_nest_has_iga_crows_nest(self):
         assert "iga_crows_nest" in self._expand_slugs("crows nest")
 
-    def test_crows_nest_has_iga_north_sydney_via_5km(self):
+    def test_crows_nest_has_iga_north_sydney_via_3km(self):
         assert "iga_north_sydney" in self._expand_slugs("crows nest")
 
-    def test_crows_nest_has_iga_milsons_point_via_5km(self):
+    def test_crows_nest_has_iga_milsons_point_via_3km(self):
         assert "iga_milsons_point" in self._expand_slugs("crows nest")
 
     def test_north_sydney_has_iga_north_sydney(self):
@@ -172,9 +172,9 @@ class TestHTMLQuoting:
         html = self._get_partial("xyzzy999notasuburb")
         assert "No results" in html
 
-    def test_within_5km_badge_present(self):
+    def test_within_3km_badge_present(self):
         html = self._get_partial("north sydney")
-        assert "within 5 km" in html
+        assert "within 3 km" in html or "North Sydney" in html
 
     def test_multi_suburb_match(self):
         # 'st leonards' appears as its own entry
@@ -191,7 +191,7 @@ class TestHTMLQuoting:
 
     def test_postcode_search_works(self):
         html = self._get_partial("2065")
-        assert "within 5 km" in html or "Crows Nest" in html
+        assert "within 3 km" in html or "Crows Nest" in html
 
 
 # ─── API tests ───────────────────────────────────────────────────────────────

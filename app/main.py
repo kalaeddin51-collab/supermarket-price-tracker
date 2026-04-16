@@ -1114,7 +1114,7 @@ def _stores_for_suburb(suburb: str) -> list[str]:
     key = suburb.strip().lower()
     if not key or key not in SUBURB_STORES:
         return ALL_STORE_SLUGS  # fallback: show all stores
-    nearby = nearby_suburbs(key, km=5.0)
+    nearby = nearby_suburbs(key, km=3.0)
     expanded = [k for k in nearby if k in SUBURB_STORES]
     if key not in expanded:
         expanded.insert(0, key)
@@ -1319,7 +1319,7 @@ async def product_detail(
 
 @app.get("/partials/suburb-stores", response_class=HTMLResponse)
 async def suburb_stores_partial(request: Request, q: str = "", db: Session = Depends(get_db)):
-    """Return store chips for suburbs matching the query, expanded to 5 km radius."""
+    """Return store chips for suburbs matching the query, expanded to 3 km radius."""
     q_norm = q.strip().lower()
     if len(q_norm) < 2:
         return HTMLResponse("")
@@ -1341,7 +1341,7 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
             "selected_stores": [],
         })
 
-    # Step 3 — for each direct match expand to 5 km radius and union stores
+    # Step 3 — for each direct match expand to 3 km radius and union stores
     # matches: display_name → deduplicated ordered list of store slugs
     matches: dict[str, list[str]] = {}
     per_suburb_slugs: dict[str, list[str]] = {}  # for per-suburb "select all" buttons
@@ -1353,8 +1353,8 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
         else:
             display = key.title()
 
-        # Expand: own suburb + all suburbs within 5 km that exist in SUBURB_STORES
-        nearby = nearby_suburbs(key, km=5.0)
+        # Expand: own suburb + all suburbs within 3 km that exist in SUBURB_STORES
+        nearby = nearby_suburbs(key, km=3.0)
         expanded_keys = [k for k in nearby if k in SUBURB_STORES]
         if key not in expanded_keys:
             expanded_keys.insert(0, key)
@@ -2093,7 +2093,7 @@ async def email_preview(request: Request, db: Session = Depends(get_db)):
         ).first()
         if pref and pref.suburb:
             user_suburb = pref.suburb
-    nearby = nearby_suburbs(user_suburb.strip().lower(), km=5.0) if user_suburb else []
+    nearby = nearby_suburbs(user_suburb.strip().lower(), km=3.0) if user_suburb else []
     suburb_display = " · ".join(
         s.title() for s in ([user_suburb] + [n for n in nearby if n != user_suburb.lower()])[:4]
     ) if user_suburb else "Your Suburb"
