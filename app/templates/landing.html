@@ -14,6 +14,10 @@
       var slugs = JSON.parse(card.dataset.igaSlugs);
       _setCardState(card, slugs.some(function (s) { return st.isSelected(s); }), '#D2232A');
     });
+    document.querySelectorAll('[data-hf-slugs]').forEach(function (card) {
+      var slugs = JSON.parse(card.dataset.hfSlugs);
+      _setCardState(card, slugs.some(function (s) { return st.isSelected(s); }), '#F27200');
+    });
   };
 
   function _setCardState(card, selected, color) {
@@ -38,6 +42,8 @@
     if (card) { st.toggle(card.dataset.storeSlug); return; }
     var igaCard = e.target.closest('[data-iga-slugs]');
     if (igaCard) { st.toggleMany(JSON.parse(igaCard.dataset.igaSlugs)); return; }
+    var hfCard = e.target.closest('[data-hf-slugs]');
+    if (hfCard) { st.toggleMany(JSON.parse(hfCard.dataset.hfSlugs)); return; }
   });
 
   document.addEventListener('htmx:afterSwap', function (e) {

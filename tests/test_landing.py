@@ -114,13 +114,20 @@ class TestSuburbStores:
         assert "iga_king_st" in slugs, f"Newtown should have iga_king_st (IGA Local Grocer), got {slugs}"
 
     def test_newtown_has_harris_farm(self):
-        assert "harris_farm" in self._expand_slugs("newtown")
+        """Newtown is close to Broadway Shopping Centre — should have harris_farm_broadway."""
+        slugs = self._expand_slugs("newtown")
+        assert "harris_farm_broadway" in slugs, f"Newtown should have harris_farm_broadway, got {slugs}"
 
     def test_manly_has_harris_farm(self):
-        assert "harris_farm" in self._expand_slugs("manly")
+        """Manly is near Mosman store."""
+        slugs = self._expand_slugs("manly")
+        hf_slugs = [s for s in slugs if s.startswith("harris_farm_")]
+        assert hf_slugs, f"Manly should have a harris_farm_* store, got {slugs}"
 
     def test_parramatta_has_no_harris_farm(self):
-        assert "harris_farm" not in self._expand_slugs("parramatta")
+        slugs = self._expand_slugs("parramatta")
+        hf_slugs = [s for s in slugs if s.startswith("harris_farm")]
+        assert not hf_slugs, f"Parramatta should have no harris_farm store, got {slugs}"
 
     def test_postcode_2065_same_as_crows_nest(self):
         """Postcode 2065 covers Crows Nest area."""

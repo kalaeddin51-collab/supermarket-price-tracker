@@ -13,16 +13,24 @@
 
   {% for suburb_name, slugs in matches.items() %}
 
-  {# Split slugs into non-IGA and IGA groups #}
+  {# Split slugs into regular, Harris Farm, and IGA groups #}
   {% set display_stores = [] %}
+  {% set hf_slugs  = [] %}
   {% set iga_slugs = [] %}
   {% for slug in slugs %}
-    {% if 'iga' in slug %}
+    {% if slug.startswith('harris_farm_') %}
+      {% if hf_slugs.append(slug) %}{% endif %}
+    {% elif 'iga' in slug %}
       {% if iga_slugs.append(slug) %}{% endif %}
     {% else %}
       {% if display_stores.append({'slug': slug, 'label': store_labels[slug], 'color': store_colors[slug]}) %}{% endif %}
     {% endif %}
   {% endfor %}
+  {# Append grouped Harris Farm entry (if any specific-location slugs present) #}
+  {% if hf_slugs %}
+    {% if display_stores.append({'slug': 'harris_farm', 'label': 'Harris Farm', 'color': '#F27200', 'hf_slugs': hf_slugs}) %}{% endif %}
+  {% endif %}
+  {# Append grouped IGA entry #}
   {% if iga_slugs %}
     {% if display_stores.append({'slug': 'iga', 'label': 'IGA', 'color': '#D2232A', 'iga_slugs': iga_slugs}) %}{% endif %}
   {% endif %}
@@ -35,7 +43,63 @@
     <ul class="space-y-1">
       {% for store in display_stores %}
 
-      {% if store.iga_slugs is defined %}
+      {% if store.hf_slugs is defined %}
+      {# ── Harris Farm group: one row per location ── #}
+      {% set any_hf_selected = false %}
+      {% for s in store.hf_slugs %}{% if s in selected_stores %}{% set any_hf_selected = true %}{% endif %}{% endfor %}
+
+      <li data-hf-slugs='{{ store.hf_slugs | tojson }}'
+          class="rounded-xl border transition-all cursor-pointer select-none overflow-hidden"
+          style="{{ 'border-color:#F2720030; background:#fff8f0' if any_hf_selected else 'border-color:#f3f4f6; background:white' }}">
+
+        {# Harris Farm header row (click toggles all HF slugs) #}
+        <div class="flex items-center gap-2.5 px-2.5 py-2">
+          <span class="store-checkbox w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                style="{{ 'background:#F27200; border-color:#F27200' if any_hf_selected else 'background:#fff; border-color:#d1d5db' }}">
+            <svg class="store-checkmark w-2.5 h-2.5 text-white" style="{{ '' if any_hf_selected else 'display:none' }}"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+            </svg>
+          </span>
+          <span class="w-2 h-2 rounded-full shrink-0" style="background:#F27200"></span>
+          <span class="text-xs font-bold text-gray-800">Harris Farm</span>
+          <span class="text-[10px] text-gray-400">({{ store.hf_slugs | length }} store{{ 's' if store.hf_slugs|length != 1 }})</span>
+        </div>
+
+        {# Individual Harris Farm store rows with real name + address + Maps link #}
+        <div class="border-t border-gray-50 divide-y divide-gray-50">
+          {% for hf_slug in store.hf_slugs %}
+          {% set info     = store_info.get(hf_slug, {}) %}
+          {% set full_name = info.get('full_name', store_labels.get(hf_slug, hf_slug)) %}
+          {% set address   = info.get('address', '') %}
+          {% set maps_url  = info.get('maps_url', '') %}
+          <div class="flex items-start gap-2 px-3 py-2.5 bg-gray-50/50">
+            <div class="flex-1 min-w-0">
+              <p class="text-[11px] font-semibold text-gray-700 leading-tight">{{ full_name }}</p>
+              {% if address %}
+              <p class="text-[10px] text-gray-400 mt-0.5 leading-snug">{{ address }}</p>
+              {% endif %}
+            </div>
+            {% if maps_url %}
+            <a href="{{ maps_url }}" target="_blank" rel="noopener"
+               onclick="event.stopPropagation()"
+               class="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-brand hover:text-brand-dark bg-brand-light hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors whitespace-nowrap mt-0.5"
+               title="Open in Google Maps">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              Map
+            </a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </li>
+
+      {% elif store.iga_slugs is defined %}
       {# ── IGA group: one row per IGA store, each with real name + address ── #}
       {% set any_iga_selected = false %}
       {% for s in store.iga_slugs %}{% if s in selected_stores %}{% set any_iga_selected = true %}{% endif %}{% endfor %}
@@ -92,20 +156,12 @@
       </li>
 
       {% else %}
-      {# ── Regular store row (Woolworths, Coles, Harris Farm) ── #}
+      {# ── Regular store row (Woolworths, Coles) ── #}
       {% set is_sel = store.slug in selected_stores %}
       {% set info = store_info.get(store.slug, {}) %}
-      {# For Harris Farm, use suburb-aware nearest store info if available #}
-      {% if store.slug == 'harris_farm' and hf_nearest is defined and suburb_name in hf_nearest %}
-        {% set hf_info   = hf_nearest[suburb_name] %}
-        {% set full_name = hf_info.get('name', info.get('full_name', store.label)) %}
-        {% set address   = hf_info.get('address', info.get('address', '')) %}
-        {% set maps_url  = hf_info.get('maps_url', info.get('maps_url', '')) %}
-      {% else %}
-        {% set full_name = info.get('full_name', store.label) %}
-        {% set address   = info.get('address', '') %}
-        {% set maps_url  = info.get('maps_url', '') %}
-      {% endif %}
+      {% set full_name = info.get('full_name', store.label) %}
+      {% set address   = info.get('address', '') %}
+      {% set maps_url  = info.get('maps_url', '') %}
 
       <li data-store-slug="{{ store.slug }}"
           data-store-color="{{ store.color }}"

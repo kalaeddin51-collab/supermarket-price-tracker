@@ -1,11 +1,17 @@
 """
-Harris Farm Markets scraper — Cammeray store.
+Harris Farm Markets scraper — supports all four Sydney stores.
 
 Uses Shopify's Predictive Search API (no auth required):
   GET https://www.harrisfarm.com.au/search/suggest.json
 
 For price refresh:
   GET https://www.harrisfarm.com.au/products/{handle}.json
+
+Store IDs (picking_store cookie / Shopify variant title prefix):
+  52 = Cammeray (397 Miller St)
+  28 = Mosman   (765 Military Rd)
+  72 = Lane Cove (65 Burns Bay Rd)
+  37 = Broadway (Broadway Shopping Centre, 1 Bay St)
 """
 import re
 import httpx
@@ -26,9 +32,23 @@ HEADERS = {
     "Referer":         "https://www.harrisfarm.com.au/",
 }
 
-# Harris Farm store IDs (picking_store cookie)
-# 52 = Cammeray   28 = Mosman   72 = Lane Cove   37 = Broadway
-# We search against the online catalogue (default) which is store-neutral.
+# Slug → Shopify picking-store ID
+STORE_IDS: dict[str, str] = {
+    "harris_farm_cammeray":  "52",
+    "harris_farm_mosman":    "28",
+    "harris_farm_lane_cove": "72",
+    "harris_farm_broadway":  "37",
+    # legacy fallback slug → Cammeray
+    "harris_farm":           "52",
+}
+
+STORE_DISPLAY: dict[str, str] = {
+    "harris_farm_cammeray":  "Harris Farm Cammeray",
+    "harris_farm_mosman":    "Harris Farm Mosman",
+    "harris_farm_lane_cove": "Harris Farm Lane Cove",
+    "harris_farm_broadway":  "Harris Farm Broadway",
+    "harris_farm":           "Harris Farm",
+}
 
 
 def _extract_unit(title: str) -> str | None:
@@ -41,7 +61,7 @@ def _extract_unit(title: str) -> str | None:
     return m.group(0).strip() if m else None
 
 
-def _parse_suggest_hit(hit: dict) -> SearchResult:
+def _parse_suggest_hit(hit: dict, store_slug: str) -> SearchResult:
     title = hit.get("title", "")
 
     # Shopify price strings like "12.69"
@@ -73,7 +93,7 @@ def _parse_suggest_hit(hit: dict) -> SearchResult:
         name        = title,
         price       = price,
         url         = full_url,
-        store       = "harris_farm",
+        store       = store_slug,
         image_url   = image_url,
         category    = hit.get("type"),
         unit        = _extract_unit(title),
@@ -81,10 +101,20 @@ def _parse_suggest_hit(hit: dict) -> SearchResult:
 
 
 class HarrisFarmScraper(BaseScraper):
-    store_slug = "harris_farm"
+    """
+    Base Harris Farm scraper — parameterised by store_slug which resolves to
+    a Shopify picking-store ID.  Subclass with store_slug set to one of the
+    STORE_IDS keys.
+    """
+
+    store_slug: str = "harris_farm_cammeray"  # default; subclasses override
 
     def __init__(self):
         self._client: httpx.AsyncClient | None = None
+
+    @property
+    def _target_store_id(self) -> str:
+        return STORE_IDS.get(self.store_slug, "52")
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -100,10 +130,6 @@ class HarrisFarmScraper(BaseScraper):
             await self._client.aclose()
 
     # ── Search ────────────────────────────────────────────────────────────
-
-    # Target store IDs for accurate pricing (variant title prefix)
-    # 52 = Cammeray  28 = Mosman  72 = Lane Cove  37 = Broadway
-    _TARGET_STORE_IDS = ("52", "28", "72", "37")
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
         """
@@ -132,7 +158,7 @@ class HarrisFarmScraper(BaseScraper):
                 .get("results", {})
                 .get("products", [])
         )
-        base_results = [_parse_suggest_hit(p) for p in products]
+        base_results = [_parse_suggest_hit(p, self.store_slug) for p in products]
 
         # Enrich with store-accurate prices (concurrent fetches)
         enriched = await _asyncio.gather(
@@ -143,7 +169,7 @@ class HarrisFarmScraper(BaseScraper):
 
     async def _enrich_price(self, result: SearchResult) -> SearchResult:
         """
-        Fetch product JSON and extract the price for our target store variants.
+        Fetch product JSON and extract the price for this store's variant.
         Harris Farm stores each store's price as a Shopify variant with title
         like '{store_id} / {origin} / Default' (regular) or
         '{store_id} / {origin} / Special{store_id}' (on special).
@@ -186,30 +212,26 @@ class HarrisFarmScraper(BaseScraper):
                 else:
                     store_regular[store_id] = price
 
-            # Find regular price for our target stores
-            regular_price = None
-            for sid in self._TARGET_STORE_IDS:
-                if sid in store_regular:
-                    regular_price = store_regular[sid]
-                    break
+            tid = self._target_store_id
 
-            # Fall back to most common non-minimum price if no target store found
+            # Price for this specific store
+            regular_price = store_regular.get(tid)
+
+            # Fall back to most common non-minimum price if this store's
+            # variant isn't present (product may not be stocked at this location)
             if regular_price is None and all_prices:
                 from collections import Counter
-                # Exclude outlier low prices (online/export variants)
                 if len(all_prices) > 1:
                     filtered = [p for p in all_prices if p > min(all_prices)]
                     regular_price = Counter(filtered).most_common(1)[0][0] if filtered else all_prices[0]
                 else:
                     regular_price = all_prices[0]
 
-            # Check if any store currently has a special (promotion tier variants)
-            # Special variants have titles like '{id} / {origin} / Special{tier}'
-            special_prices = list(store_special.values())
-            on_special_price = min(special_prices) if special_prices else None
+            # Special (promotion) price for this store only
+            on_special_price = store_special.get(tid)
 
             if on_special_price is not None and regular_price is not None and on_special_price < regular_price:
-                result.price = on_special_price
+                result.price     = on_special_price
                 result.was_price = regular_price
                 result.on_special = True
             elif regular_price is not None:
@@ -229,12 +251,9 @@ class HarrisFarmScraper(BaseScraper):
         """
         client = await self._get_client()
 
-        # Derive handle from URL
         if "/products/" in url:
             handle = url.rstrip("/").split("/products/")[-1].split("?")[0]
         else:
-            # Fall back: external_id may be a numeric Shopify product ID —
-            # re-search by id isn't easily supported so we'll try the search API.
             handle = None
 
         if handle:
@@ -252,19 +271,50 @@ class HarrisFarmScraper(BaseScraper):
                 error_message = "Cannot resolve product handle from URL",
             )
 
-        variants  = data.get("variants", [])
-        first     = variants[0] if variants else {}
+        variants = data.get("variants", [])
+        tid = self._target_store_id
 
-        price_str    = first.get("price") or "0"
-        compare_str  = first.get("compare_at_price") or "0"
-        try:
-            price   = float(price_str) or None
-            compare = float(compare_str)
-        except (ValueError, TypeError):
-            price, compare = None, 0.0
+        # Find this store's regular/special variants
+        store_regular: dict[str, float] = {}
+        store_special: dict[str, float] = {}
+        for v in variants:
+            title = str(v.get("title", ""))
+            price_str = v.get("price")
+            if not price_str:
+                continue
+            try:
+                p = float(price_str)
+            except (ValueError, TypeError):
+                continue
+            parts = [x.strip() for x in title.split("/")]
+            sid  = parts[0] if parts else ""
+            tier = parts[2] if len(parts) >= 3 else "Default"
+            if "Special" in tier:
+                store_special[sid] = p
+            else:
+                store_regular[sid] = p
 
-        on_special = compare > 0 and price is not None and compare > price
-        was_price  = compare if on_special else None
+        price     = store_regular.get(tid)
+        was_price = None
+
+        on_special_price = store_special.get(tid)
+        if on_special_price is not None and price is not None and on_special_price < price:
+            was_price = price
+            price     = on_special_price
+            on_special = True
+        elif price is None and variants:
+            # Fall back to first variant
+            first     = variants[0]
+            try:
+                price   = float(first.get("price") or "0") or None
+                compare = float(first.get("compare_at_price") or "0")
+            except (ValueError, TypeError):
+                price, compare = None, 0.0
+            on_special = compare > 0 and price is not None and compare > price
+            if on_special:
+                was_price = compare
+        else:
+            on_special = False
 
         images    = data.get("images", [])
         image_url = images[0].get("src") if images else None
@@ -283,3 +333,25 @@ class HarrisFarmScraper(BaseScraper):
             unit        = _extract_unit(data.get("title", "")),
             category    = data.get("product_type"),
         )
+
+
+# ── Convenience subclasses ───────────────────────────────────────────────────
+
+class HarrisFarmCammerayScraper(HarrisFarmScraper):
+    """397 Miller St, Cammeray NSW 2062."""
+    store_slug = "harris_farm_cammeray"
+
+
+class HarrisFarmMosmanScraper(HarrisFarmScraper):
+    """765 Military Rd, Mosman NSW 2088."""
+    store_slug = "harris_farm_mosman"
+
+
+class HarrisFarmLaneCoveScraper(HarrisFarmScraper):
+    """65 Burns Bay Rd, Lane Cove NSW 2066."""
+    store_slug = "harris_farm_lane_cove"
+
+
+class HarrisFarmBroadwayScraper(HarrisFarmScraper):
+    """Broadway Shopping Centre, 1 Bay St, Broadway NSW 2007."""
+    store_slug = "harris_farm_broadway"

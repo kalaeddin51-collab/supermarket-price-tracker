@@ -2,168 +2,181 @@
 Mapping of Sydney suburb names and postcodes → store slugs.
 
 Woolworths and Coles are available across all Sydney.
-Harris Farm is included for suburbs near their store locations.
-IGA variants are included only for the North Sydney / Lower North Shore area
-where those specific stores are configured.
+Harris Farm has four Sydney stores — each suburb maps to its nearest one:
+  harris_farm_broadway   — Broadway Shopping Centre, 1 Bay St (Inner West / CBD)
+  harris_farm_cammeray   — 397 Miller St, Cammeray (Lower North Shore)
+  harris_farm_mosman     — 765 Military Rd, Mosman (Mosman / Northern Beaches)
+  harris_farm_lane_cove  — 65 Burns Bay Rd, Lane Cove (Lane Cove / Upper North Shore)
+IGA variants are included only for the North Sydney / Lower North Shore / Newtown areas.
 """
 
-_W = "woolworths"
-_C = "coles"
-_HF = "harris_farm"
-_IN = "iga_north_sydney"
-_IM = "iga_milsons_point"
-_IC = "iga_crows_nest"
-_INW = "iga_newtown"    # Lloyds IGA Newtown, 259 King St
-_IKS = "iga_king_st"   # IGA Local Grocer King Street, 40 King St
+_W   = "woolworths"
+_C   = "coles"
+_HFB = "harris_farm_broadway"    # Broadway Shopping Centre
+_HFC = "harris_farm_cammeray"    # 397 Miller St, Cammeray
+_HFM = "harris_farm_mosman"      # 765 Military Rd, Mosman
+_HFL = "harris_farm_lane_cove"   # 65 Burns Bay Rd, Lane Cove
+_IN  = "iga_north_sydney"
+_IM  = "iga_milsons_point"
+_IC  = "iga_crows_nest"
+_INW = "iga_newtown"             # Lloyds IGA Newtown, 259 King St
+_IKS = "iga_king_st"             # IGA Local Grocer King Street, 40 King St
 
 SUBURB_STORES: dict[str, list[str]] = {
 
-    # ── City / CBD (2000) ─────────────────────────────────────────────
-    "sydney":               [_W, _C, _HF],
-    "sydney cbd":           [_W, _C, _HF],
-    "haymarket":            [_W, _C, _HF],
+    # ── City / CBD (2000) — nearest HF: Broadway ──────────────────────
+    "sydney":               [_W, _C, _HFB],
+    "sydney cbd":           [_W, _C, _HFB],
+    "haymarket":            [_W, _C, _HFB],
     "the rocks":            [_W, _C],
     "barangaroo":           [_W, _C],
-    "2000":                 [_W, _C, _HF],
+    "2000":                 [_W, _C, _HFB],
 
-    # ── Pyrmont / Ultimo (2007–2009) ──────────────────────────────────
-    "pyrmont":              [_W, _C, _HF],
-    "ultimo":               [_W, _C, _HF],
-    "2007":                 [_W, _C, _HF],
-    "2009":                 [_W, _C, _HF],
+    # ── Pyrmont / Ultimo (2007–2009) — nearest HF: Broadway ──────────
+    "pyrmont":              [_W, _C, _HFB],
+    "ultimo":               [_W, _C, _HFB],
+    "2007":                 [_W, _C, _HFB],
+    "2009":                 [_W, _C, _HFB],
 
-    # ── Inner East (2010–2021) ────────────────────────────────────────
-    "surry hills":          [_W, _C, _HF],
-    "darlinghurst":         [_W, _C, _HF],
-    "east sydney":          [_W, _C, _HF],
-    "woolloomooloo":        [_W, _C, _HF],
-    "potts point":          [_W, _C, _HF],
-    "elizabeth bay":        [_W, _C, _HF],
-    "2010":                 [_W, _C, _HF],
-    "redfern":              [_W, _C, _HF],
-    "waterloo":             [_W, _C, _HF],
-    "zetland":              [_W, _C, _HF],
-    "2016":                 [_W, _C, _HF],
-    "2017":                 [_W, _C, _HF],
-    "paddington":           [_W, _C, _HF],
-    "woollahra":            [_W, _C, _HF],
-    "edgecliff":            [_W, _C, _HF],
-    "2021":                 [_W, _C, _HF],
+    # ── Inner East (2010–2021) — nearest HF: Broadway ─────────────────
+    "surry hills":          [_W, _C, _HFB],
+    "darlinghurst":         [_W, _C, _HFB],
+    "east sydney":          [_W, _C, _HFB],
+    "woolloomooloo":        [_W, _C, _HFB],
+    "potts point":          [_W, _C, _HFB],
+    "elizabeth bay":        [_W, _C, _HFB],
+    "2010":                 [_W, _C, _HFB],
+    "redfern":              [_W, _C, _HFB],
+    "waterloo":             [_W, _C, _HFB],
+    "zetland":              [_W, _C, _HFB],
+    "2016":                 [_W, _C, _HFB],
+    "2017":                 [_W, _C, _HFB],
+    "paddington":           [_W, _C, _HFB],
+    "woollahra":            [_W, _C, _HFB],
+    "edgecliff":            [_W, _C, _HFB],
+    "2021":                 [_W, _C, _HFB],
 
-    # ── Eastern Suburbs (2022–2036) ───────────────────────────────────
-    "double bay":           [_W, _C, _HF],
+    # ── Eastern Suburbs (2022–2036) — nearest HF: Broadway ────────────
+    "double bay":           [_W, _C, _HFB],
     "point piper":          [_W, _C],
-    "rose bay":             [_W, _C, _HF],
-    "bellevue hill":        [_W, _C, _HF],
-    "2022":                 [_W, _C, _HF],
-    "bondi junction":       [_W, _C, _HF],
-    "bondi":                [_W, _C, _HF],
-    "bondi beach":          [_W, _C, _HF],
+    "rose bay":             [_W, _C, _HFB],
+    "bellevue hill":        [_W, _C, _HFB],
+    "2022":                 [_W, _C, _HFB],
+    "bondi junction":       [_W, _C, _HFB],
+    "bondi":                [_W, _C, _HFB],
+    "bondi beach":          [_W, _C, _HFB],
     "tamarama":             [_W, _C],
-    "bronte":               [_W, _C, _HF],
-    "2026":                 [_W, _C, _HF],
-    "waverley":             [_W, _C, _HF],
+    "bronte":               [_W, _C, _HFB],
+    "2026":                 [_W, _C, _HFB],
+    "waverley":             [_W, _C, _HFB],
     "dover heights":        [_W, _C],
-    "2024":                 [_W, _C, _HF],
+    "2024":                 [_W, _C, _HFB],
     "clovelly":             [_W, _C],
-    "coogee":               [_W, _C, _HF],
-    "randwick":             [_W, _C, _HF],
-    "2031":                 [_W, _C, _HF],
+    "coogee":               [_W, _C, _HFB],
+    "randwick":             [_W, _C, _HFB],
+    "2031":                 [_W, _C, _HFB],
     "kingsford":            [_W, _C],
-    "kensington":           [_W, _C, _HF],
-    "2032":                 [_W, _C, _HF],
+    "kensington":           [_W, _C, _HFB],
+    "2032":                 [_W, _C, _HFB],
     "matraville":           [_W, _C],
     "malabar":              [_W, _C],
-    "maroubra":             [_W, _C, _HF],
-    "2035":                 [_W, _C, _HF],
+    "maroubra":             [_W, _C, _HFB],
+    "2035":                 [_W, _C, _HFB],
     "la perouse":           [_W, _C],
     "phillip bay":          [_W, _C],
     "2036":                 [_W, _C],
 
-    # ── Inner West (2037–2050) ────────────────────────────────────────
-    "glebe":                [_W, _C, _HF],
-    "forest lodge":         [_W, _C, _HF],
-    "2037":                 [_W, _C, _HF],
-    "rozelle":              [_W, _C, _HF],
-    "lilyfield":            [_W, _C, _HF],
-    "2039":                 [_W, _C, _HF],
-    "balmain":              [_W, _C, _HF],
-    "balmain east":         [_W, _C, _HF],
-    "birchgrove":           [_W, _C, _HF],
-    "2041":                 [_W, _C, _HF],
-    "newtown":              [_W, _C, _HF, _INW, _IKS],
-    "erskineville":         [_W, _C, _HF, _INW, _IKS],
-    "2042":                 [_W, _C, _HF, _INW, _IKS],
-    "enmore":               [_W, _C, _HF, _INW, _IKS],
-    "st peters":            [_W, _C, _HF, _INW],
+    # ── Inner West (2037–2050) — nearest HF: Broadway ─────────────────
+    "glebe":                [_W, _C, _HFB],
+    "forest lodge":         [_W, _C, _HFB],
+    "2037":                 [_W, _C, _HFB],
+    "rozelle":              [_W, _C, _HFB],
+    "lilyfield":            [_W, _C, _HFB],
+    "2039":                 [_W, _C, _HFB],
+    "balmain":              [_W, _C, _HFB],
+    "balmain east":         [_W, _C, _HFB],
+    "birchgrove":           [_W, _C, _HFB],
+    "2041":                 [_W, _C, _HFB],
+    "newtown":              [_W, _C, _HFB, _INW, _IKS],
+    "erskineville":         [_W, _C, _HFB, _INW, _IKS],
+    "2042":                 [_W, _C, _HFB, _INW, _IKS],
+    "enmore":               [_W, _C, _HFB, _INW, _IKS],
+    "st peters":            [_W, _C, _HFB, _INW],
     "sydenham":             [_W, _C, _INW],
     "tempe":                [_W, _C],
-    "2044":                 [_W, _C, _HF, _INW],
-    "leichhardt":           [_W, _C, _HF, _INW],
-    "annandale":            [_W, _C, _HF, _INW],
-    "2040":                 [_W, _C, _HF, _INW],
-    "petersham":            [_W, _C, _HF, _INW],
+    "2044":                 [_W, _C, _HFB, _INW],
+    "leichhardt":           [_W, _C, _HFB, _INW],
+    "annandale":            [_W, _C, _HFB, _INW],
+    "2040":                 [_W, _C, _HFB, _INW],
+    "petersham":            [_W, _C, _HFB, _INW],
     "lewisham":             [_W, _C, _INW],
-    "stanmore":             [_W, _C, _HF, _INW, _IKS],
-    "2048":                 [_W, _C, _HF, _INW, _IKS],
-    "marrickville":         [_W, _C, _HF, _INW],
-    "dulwich hill":         [_W, _C, _HF],
-    "2204":                 [_W, _C, _HF],
-    "ashfield":             [_W, _C, _HF],
-    "summer hill":          [_W, _C, _HF],
-    "2131":                 [_W, _C, _HF],
+    "stanmore":             [_W, _C, _HFB, _INW, _IKS],
+    "2048":                 [_W, _C, _HFB, _INW, _IKS],
+    "marrickville":         [_W, _C, _HFB, _INW],
+    "dulwich hill":         [_W, _C, _HFB],
+    "2204":                 [_W, _C, _HFB],
+    "ashfield":             [_W, _C, _HFB],
+    "summer hill":          [_W, _C, _HFB],
+    "2131":                 [_W, _C, _HFB],
 
-    # ── Alexandria / Green Square / Zetland ───────────────────────────
-    "alexandria":           [_W, _C, _HF],
+    # ── Alexandria / Green Square / Zetland — nearest HF: Broadway ───
+    "alexandria":           [_W, _C, _HFB],
     "beaconsfield":         [_W, _C],
-    "rosebery":             [_W, _C, _HF],
-    "green square":         [_W, _C, _HF],
-    "2015":                 [_W, _C, _HF],
+    "rosebery":             [_W, _C, _HFB],
+    "green square":         [_W, _C, _HFB],
+    "2015":                 [_W, _C, _HFB],
     "mascot":               [_W, _C],
     "eastlakes":            [_W, _C],
     "2018":                 [_W, _C],
     "botany":               [_W, _C],
     "2019":                 [_W, _C],
 
-    # ── Lower North Shore (2060–2090) — includes IGA stores ───────────
-    "north sydney":         [_W, _C, _IN],
-    "lavender bay":         [_W, _C, _IN],
-    "mcmahons point":       [_W, _C, _IN],
-    "waverton":             [_W, _C, _IN],
-    "berry island":         [_W, _C, _IN],
-    "2060":                 [_W, _C, _IN],
-    "milsons point":        [_W, _C, _IM],
-    "kirribilli":           [_W, _C, _IM],
-    "2061":                 [_W, _C, _IM],
-    "cammeray":             [_W, _HF, _IN],
-    "2062":                 [_W, _HF, _IN],
-    "cremorne":             [_W, _C],
-    "cremorne point":       [_W, _C],
-    "2063":                 [_W, _C],
-    "artarmon":             [_W, _C, _IC],
-    "st leonards":          [_W, _C, _IC],
-    "2064":                 [_W, _C, _IC],
-    "crows nest":           [_W, _C, _IC],
-    "wollstonecraft":       [_W, _C, _IC],
-    "naremburn":            [_W, _C, _IC],
-    "2065":                 [_W, _C, _IC],
-    "lane cove":            [_W, _C],
-    "longueville":          [_W, _C],
-    "2067":                 [_W, _C],
-    "mosman":               [_W, _C, _HF],
-    "2088":                 [_W, _C, _HF],
-    "neutral bay":          [_W, _C, _IM],
-    "kurraba point":        [_W, _C, _IM],
-    "2090":                 [_W, _C, _IM],
+    # ── Lower North Shore (2060–2090) ─────────────────────────────────
+    # North Sydney / Cammeray area — nearest HF: Cammeray
+    "north sydney":         [_W, _C, _IN,  _HFC],
+    "lavender bay":         [_W, _C, _IN,  _HFC],
+    "mcmahons point":       [_W, _C, _IN,  _HFC],
+    "waverton":             [_W, _C, _IN,  _HFC],
+    "berry island":         [_W, _C, _IN,  _HFC],
+    "2060":                 [_W, _C, _IN,  _HFC],
+    "milsons point":        [_W, _C, _IM,  _HFC],
+    "kirribilli":           [_W, _C, _IM,  _HFC],
+    "2061":                 [_W, _C, _IM,  _HFC],
+    "cammeray":             [_W,      _IN,  _HFC],   # no Coles in Cammeray
+    "2062":                 [_W,      _IN,  _HFC],
+    # Cremorne — nearest HF: Mosman (Military Rd runs through both)
+    "cremorne":             [_W, _C,        _HFM],
+    "cremorne point":       [_W, _C,        _HFM],
+    "2063":                 [_W, _C,        _HFM],
+    # Artarmon / St Leonards / Crows Nest — nearest HF: Cammeray
+    "artarmon":             [_W, _C, _IC,  _HFC],
+    "st leonards":          [_W, _C, _IC,  _HFC],
+    "2064":                 [_W, _C, _IC,  _HFC],
+    "crows nest":           [_W, _C, _IC,  _HFC],
+    "wollstonecraft":       [_W, _C, _IC,  _HFC],
+    "naremburn":            [_W, _C, _IC,  _HFC],
+    "2065":                 [_W, _C, _IC,  _HFC],
+    # Lane Cove — nearest HF: Lane Cove
+    "lane cove":            [_W, _C,        _HFL],
+    "longueville":          [_W, _C,        _HFL],
+    "2067":                 [_W, _C,        _HFL],
+    # Mosman — nearest HF: Mosman
+    "mosman":               [_W, _C,        _HFM],
+    "2088":                 [_W, _C,        _HFM],
+    # Neutral Bay / Kurraba — halfway between Cammeray & Mosman; use Cammeray
+    "neutral bay":          [_W, _C, _IM,  _HFC],
+    "kurraba point":        [_W, _C, _IM,  _HFC],
+    "2090":                 [_W, _C, _IM,  _HFC],
 
     # ── Upper North Shore ─────────────────────────────────────────────
-    "chatswood":            [_W, _C, _HF],
+    # Chatswood / Roseville — nearest HF: Lane Cove
+    "chatswood":            [_W, _C,        _HFL],
     "willoughby":           [_W, _C],
     "castle cove":          [_W, _C],
-    "2068":                 [_W, _C, _HF],
-    "roseville":            [_W, _C, _HF],
-    "lindfield":            [_W, _C],
-    "2069":                 [_W, _C, _HF],
+    "2068":                 [_W, _C,        _HFL],
+    "roseville":            [_W, _C,        _HFL],
+    "lindfield":            [_W, _C,        _HFL],
+    "2069":                 [_W, _C,        _HFL],
     "killara":              [_W, _C],
     "gordon":               [_W, _C],
     "pymble":               [_W, _C],
@@ -179,18 +192,18 @@ SUBURB_STORES: dict[str, list[str]] = {
     "st ives":              [_W, _C],
     "2075":                 [_W, _C],
 
-    # ── Northern Beaches ──────────────────────────────────────────────
-    "manly":                [_W, _C, _HF],
-    "fairlight":            [_W, _C, _HF],
-    "2095":                 [_W, _C, _HF],
-    "freshwater":           [_W, _C, _HF],
+    # ── Northern Beaches — nearest HF: Mosman ─────────────────────────
+    "manly":                [_W, _C, _HFM],
+    "fairlight":            [_W, _C, _HFM],
+    "2095":                 [_W, _C, _HFM],
+    "freshwater":           [_W, _C, _HFM],
     "curl curl":            [_W, _C],
-    "2096":                 [_W, _C, _HF],
-    "dee why":              [_W, _C, _HF],
-    "2099":                 [_W, _C, _HF],
+    "2096":                 [_W, _C, _HFM],
+    "dee why":              [_W, _C, _HFM],
+    "2099":                 [_W, _C, _HFM],
     "narraweena":           [_W, _C],
-    "brookvale":            [_W, _C, _HF],
-    "2100":                 [_W, _C, _HF],
+    "brookvale":            [_W, _C, _HFM],
+    "2100":                 [_W, _C, _HFM],
     "narrabeen":            [_W, _C],
     "collaroy":             [_W, _C],
     "2101":                 [_W, _C],
@@ -200,8 +213,8 @@ SUBURB_STORES: dict[str, list[str]] = {
     "2107":                 [_W, _C],
     "mona vale":            [_W, _C],
     "2103":                 [_W, _C],
-    "frenchs forest":       [_W, _C, _HF],
-    "2086":                 [_W, _C, _HF],
+    "frenchs forest":       [_W, _C, _HFM],
+    "2086":                 [_W, _C, _HFM],
 
     # ── North West / Hills District ───────────────────────────────────
     "ryde":                 [_W, _C],
@@ -227,7 +240,6 @@ SUBURB_STORES: dict[str, list[str]] = {
     "westmead":             [_W, _C],
     "2145":                 [_W, _C],
     "pendle hill":          [_W, _C],
-    "2145":                 [_W, _C],
     "granville":            [_W, _C],
     "2142":                 [_W, _C],
     "auburn":               [_W, _C],
@@ -249,11 +261,12 @@ SUBURB_STORES: dict[str, list[str]] = {
     "homebush":             [_W, _C],
     "homebush bay":         [_W, _C],
     "2140":                 [_W, _C],
-    "five dock":            [_W, _C, _HF],
+    # Five Dock / Drummoyne — nearest HF: Broadway (Anzac Bridge)
+    "five dock":            [_W, _C, _HFB],
     "canada bay":           [_W, _C],
-    "2046":                 [_W, _C, _HF],
-    "drummoyne":            [_W, _C, _HF],
-    "2047":                 [_W, _C, _HF],
+    "2046":                 [_W, _C, _HFB],
+    "drummoyne":            [_W, _C, _HFB],
+    "2047":                 [_W, _C, _HFB],
 
     # ── St George / Sutherland ────────────────────────────────────────
     "kogarah":              [_W, _C],
@@ -264,7 +277,6 @@ SUBURB_STORES: dict[str, list[str]] = {
     "2216":                 [_W, _C],
     "brighton-le-sands":    [_W, _C],
     "ramsgate":             [_W, _C],
-    "2217":                 [_W, _C],
     "miranda":              [_W, _C],
     "2228":                 [_W, _C],
     "cronulla":             [_W, _C],
@@ -276,11 +288,10 @@ SUBURB_STORES: dict[str, list[str]] = {
     "little bay":           [_W, _C],
     "chifley":              [_W, _C],
     "port botany":          [_W, _C],
-    "2036":                 [_W, _C],
 
-    # ── Newtown / Enmore adjacent ─────────────────────────────────────
-    "camperdown":           [_W, _C, _HF],
-    "2050":                 [_W, _C, _HF],
+    # ── Newtown / Enmore adjacent — nearest HF: Broadway ─────────────
+    "camperdown":           [_W, _C, _HFB],
+    "2050":                 [_W, _C, _HFB],
 
 }
 

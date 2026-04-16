@@ -36,12 +36,18 @@ class UserPreference(Base):
 
 
 class Store(enum.Enum):
-    woolworths = "woolworths"
-    coles = "coles"
-    harris_farm = "harris_farm"
-    iga_crows_nest = "iga_crows_nest"
-    iga_milsons_point = "iga_milsons_point"
-    iga_north_sydney = "iga_north_sydney"
+    woolworths           = "woolworths"
+    coles                = "coles"
+    harris_farm          = "harris_farm"           # legacy — kept for existing DB rows
+    harris_farm_cammeray  = "harris_farm_cammeray"
+    harris_farm_mosman    = "harris_farm_mosman"
+    harris_farm_lane_cove = "harris_farm_lane_cove"
+    harris_farm_broadway  = "harris_farm_broadway"
+    iga_crows_nest        = "iga_crows_nest"
+    iga_milsons_point     = "iga_milsons_point"
+    iga_north_sydney      = "iga_north_sydney"
+    iga_newtown           = "iga_newtown"
+    iga_king_st           = "iga_king_st"
 
 
 class Product(Base):
