@@ -1830,6 +1830,17 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     now_str   = datetime.utcnow().strftime("%A, %d %B %Y")
     count_str = f"{len(entries)} product{'s' if len(entries) != 1 else ''} tracked"
 
+    # Build dynamic base URL and suburb for email footer
+    base_url = str(request.base_url).rstrip("/")
+    _uid_fe = request.session.get("user_id")
+    _suburb_label = "Price Tracker"
+    if _uid_fe:
+        _pref = db.query(models.UserPreference).filter(
+            models.UserPreference.user_id == _uid_fe
+        ).first()
+        if _pref and _pref.suburb:
+            _suburb_label = _pref.suburb.title()
+
     html = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -1862,9 +1873,9 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
     <!-- Footer -->
     <div style="padding:16px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center">
       <p style="margin:0;font-size:11px;color:#9ca3af">
-        Price Tracker · North Sydney ·
-        <a href="http://localhost:8000" style="color:#059669;text-decoration:none">Open app</a> ·
-        <a href="http://localhost:8000/settings" style="color:#059669;text-decoration:none">Manage alerts</a>
+        Price Tracker · {_suburb_label} ·
+        <a href="{base_url}" style="color:#059669;text-decoration:none">Open app</a> ·
+        <a href="{base_url}/settings" style="color:#059669;text-decoration:none">Manage alerts</a>
       </p>
       <p style="margin:4px 0 0;font-size:10px;color:#d1d5db">This is a preview — real alerts fire only when prices change and meet your thresholds.</p>
     </div>
@@ -1916,8 +1927,23 @@ async def email_preview(request: Request, db: Session = Depends(get_db)):
             .first()
         )
         preview_items.append({"product": entry.product, "latest": latest})
+
+    # Build dynamic suburb display string for the email header
+    user_suburb = ""
+    if _uid:
+        pref = db.query(models.UserPreference).filter(
+            models.UserPreference.user_id == _uid
+        ).first()
+        if pref and pref.suburb:
+            user_suburb = pref.suburb
+    nearby = nearby_suburbs(user_suburb.strip().lower(), km=5.0) if user_suburb else []
+    suburb_display = " · ".join(
+        s.title() for s in ([user_suburb] + [n for n in nearby if n != user_suburb.lower()])[:4]
+    ) if user_suburb else "Your Suburb"
+
     return templates.TemplateResponse(request, "partials/email_preview.html", {
         "preview_items": preview_items,
+        "suburb_display": suburb_display,
     })
 
 

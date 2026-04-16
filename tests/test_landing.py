@@ -105,10 +105,13 @@ class TestSuburbStores:
     def test_north_sydney_has_iga_north_sydney(self):
         assert "iga_north_sydney" in self._expand_slugs("north sydney")
 
-    def test_newtown_has_no_iga(self):
+    def test_newtown_has_iga_newtown(self):
         slugs = self._expand_slugs("newtown")
-        iga = [s for s in slugs if "iga" in s]
-        assert iga == [], f"Newtown should have no IGA, got {iga}"
+        assert "iga_newtown" in slugs, f"Newtown should have iga_newtown (Lloyds IGA), got {slugs}"
+
+    def test_newtown_has_iga_king_st(self):
+        slugs = self._expand_slugs("newtown")
+        assert "iga_king_st" in slugs, f"Newtown should have iga_king_st (IGA Local Grocer), got {slugs}"
 
     def test_newtown_has_harris_farm(self):
         assert "harris_farm" in self._expand_slugs("newtown")
@@ -175,9 +178,9 @@ class TestHTMLQuoting:
         html = self._get_partial("neutral bay")
         assert "IGA" in html
 
-    def test_newtown_shows_no_iga(self):
+    def test_newtown_shows_iga(self):
         html = self._get_partial("newtown")
-        assert "igaSlugs" not in html, "Newtown has no IGA stores within 5km"
+        assert "igaSlugs" in html, "Newtown has IGA stores (Lloyds IGA and IGA Local Grocer on King St)"
 
     def test_postcode_search_works(self):
         html = self._get_partial("2065")

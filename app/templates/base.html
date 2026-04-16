@@ -35,12 +35,15 @@
       }
     });
 
-    /* Load saved suburb into navbar from server */
+    /* Load saved suburb into navbar + page title from server */
     function loadNavSuburb() {
       fetch('/api/suburb').then(function(r){ return r.json(); }).then(function(d){
         if (d.suburb) {
+          var display = d.suburb.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
           document.getElementById('nav-suburb-text').textContent = d.suburb;
           document.getElementById('nav-suburb-tag').style.display = '';
+          /* Update the " — <suburb>" suffix in the page title */
+          document.title = document.title.replace(/\s*—\s*.+$/, ' — ' + display);
         }
       }).catch(function(){});
     }

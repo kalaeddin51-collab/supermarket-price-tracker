@@ -537,6 +537,7 @@
       <div id="email-preview" class="px-5 py-4"
         hx-get="/partials/settings/email-preview"
         hx-trigger="load"
+        hx-target="this"
         hx-swap="innerHTML">
         <div class="text-sm text-gray-400">Loading preview…</div>
       </div>
@@ -571,32 +572,14 @@
     </div>
 
     <!-- ── Save button ────────────────────────────────────────────────── -->
-    <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-      <div id="test-email-result"></div>
-      <div class="flex items-center gap-3 flex-wrap">
-        <button type="button"
-          hx-post="/settings/test-email"
-          hx-target="#test-email-result"
-          hx-swap="innerHTML"
-          hx-indicator="#test-email-spinner"
-          class="flex items-center gap-2 border border-gray-200 hover:border-brand/40 text-gray-600 hover:text-brand font-medium px-4 py-2.5 rounded-xl transition-all bg-white text-sm">
-          <svg id="test-email-spinner" class="htmx-indicator animate-spin w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          <svg class="w-4 h-4 htmx-idle-only" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-          Send test email
-        </button>
-        <button type="submit"
-          class="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-          Save settings
-        </button>
-      </div>
+    <div class="flex justify-end pt-1">
+      <button type="submit"
+        class="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        Save settings
+      </button>
     </div>
 
   </form>
