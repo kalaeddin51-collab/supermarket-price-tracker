@@ -1821,7 +1821,10 @@ async def save_settings(
     ns.email_address_2 = email_address_2 or None
     ns.email_address_3 = email_address_3 or None
     ns.email_enabled   = email_enabled == "on"
-    ns.digest_frequency = digest_frequency
+    try:
+        ns.digest_frequency = models.DigestFrequency(digest_frequency)
+    except ValueError:
+        ns.digest_frequency = models.DigestFrequency.weekly
     ns.notify_hour     = notify_hour
     ns.notify_days     = notify_days
     ns.ntfy_enabled    = ntfy_enabled == "on"

@@ -264,7 +264,8 @@
             {% for val, label in [('daily','Daily'), ('weekly','Weekly')] %}
             <label class="flex items-center gap-2 cursor-pointer">
               <input type="radio" name="digest_frequency" value="{{ val }}"
-                {% if ns.digest_frequency == val or (not ns.digest_frequency and val == 'weekly') %}checked{% endif %}
+                {% set _df = ns.digest_frequency.value if ns.digest_frequency and ns.digest_frequency is not string else (ns.digest_frequency or 'weekly') %}
+                {% if _df == val %}checked{% endif %}
                 class="w-4 h-4 text-brand focus:ring-brand border-gray-300">
               <span class="text-sm text-gray-700 font-medium">{{ label }}</span>
             </label>
