@@ -1111,6 +1111,101 @@ def _stores_for_suburb(suburb: str) -> list[str]:
     return slugs or ALL_STORE_SLUGS
 
 
+# ── Contact page ─────────────────────────────────────────────────────────────
+
+CONTACT_RECIPIENT = "kalaeddin51@gmail.com"
+
+@app.get("/contact", response_class=HTMLResponse)
+async def contact_page(request: Request):
+    _uid = request.session.get("user_id") if hasattr(request, "session") else None
+    return templates.TemplateResponse(request, "contact.html", {
+        "page": "contact",
+        "user": request.session.get("user") if hasattr(request, "session") else None,
+    })
+
+
+@app.post("/contact", response_class=HTMLResponse)
+async def contact_submit(
+    request: Request,
+    sender_name:  str = Form(""),
+    sender_email: str = Form(""),
+    subject:      str = Form("general"),
+    message:      str = Form(""),
+):
+    form_data = {"sender_name": sender_name, "sender_email": sender_email,
+                 "subject": subject, "message": message}
+
+    if not message.strip():
+        return templates.TemplateResponse(request, "contact.html", {
+            "page": "contact",
+            "error": "Please enter a message before sending.",
+            "form":  form_data,
+        })
+
+    subject_labels = {
+        "general": "General feedback",
+        "bug":     "Bug report",
+        "feature": "Feature request",
+        "data":    "Wrong / missing price data",
+        "other":   "Other",
+    }
+    subject_label = subject_labels.get(subject, subject.title())
+    from_display  = sender_name.strip() or "Anonymous"
+    reply_to_line = f"<b>Reply-to:</b> {sender_email}" if sender_email.strip() else "<i>No email provided</i>"
+
+    from datetime import datetime as _dt
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333">
+  <div style="background:#059669;color:white;padding:16px 20px;border-radius:8px 8px 0 0">
+    <h2 style="margin:0;font-size:18px">🛒 Price Tracker — {subject_label}</h2>
+    <p style="margin:4px 0 0;font-size:12px;opacity:.8">{_dt.now().strftime('%A, %d %B %Y %H:%M')}</p>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-top:none;padding:20px;border-radius:0 0 8px 8px">
+    <table style="width:100%;margin-bottom:16px;font-size:13px">
+      <tr><td style="color:#6b7280;width:90px;padding:4px 0"><b>From</b></td><td>{from_display}</td></tr>
+      <tr><td style="color:#6b7280;padding:4px 0"><b>Email</b></td><td>{reply_to_line}</td></tr>
+      <tr><td style="color:#6b7280;padding:4px 0"><b>Subject</b></td><td>{subject_label}</td></tr>
+    </table>
+    <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0">
+    <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">{message.strip()}</div>
+  </div>
+  <p style="font-size:11px;color:#9ca3af;margin-top:16px;text-align:center">
+    Sent via Price Tracker contact form
+  </p>
+</body>
+</html>"""
+
+    from app.notifiers.email import send_digest
+    resend_key = get_resend_key()
+    import asyncio as _asyncio
+    loop = _asyncio.get_event_loop()
+    try:
+        email_subject = f"Price Tracker — {subject_label} from {from_display}"
+        ok = await loop.run_in_executor(
+            None, lambda: send_digest(email_subject, html_body, [CONTACT_RECIPIENT],
+                                      resend_api_key=resend_key or None)
+        )
+    except Exception as exc:
+        ok = False
+        logging.error("Contact form send failed: %s", exc)
+
+    if ok:
+        return templates.TemplateResponse(request, "contact.html", {
+            "page": "contact",
+            "success": True,
+        })
+    else:
+        from app.notifiers.email import send_digest as _sd
+        err_detail = getattr(_sd, "_last_error", "") or "Unknown error"
+        return templates.TemplateResponse(request, "contact.html", {
+            "page": "contact",
+            "error": f"Email delivery failed: {err_detail}. Please try again later.",
+            "form":  form_data,
+        })
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     ns = db.query(models.NotificationSettings).first()
