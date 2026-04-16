@@ -1295,6 +1295,7 @@ async def suburb_stores_partial(request: Request, q: str = "", db: Session = Dep
 @app.get("/partials/search-results", response_class=HTMLResponse)
 async def search_results(
     request: Request,
+    db: Session = Depends(get_db),
     q: str = "",
     store: str = "all",
     page: int = 0,
@@ -1332,11 +1333,23 @@ async def search_results(
             failed_stores.append(store_slug)
             return (store_slug, [])
 
-    # Resolve active store slugs — supports "all", single slug, or comma-separated list
+    # Resolve active store slugs — supports "all", single slug, or comma-separated list.
+    # "all" is scoped to the user's saved suburb stores (from session) to avoid leaking
+    # IGA stores from a previous suburb into results for the current suburb.
     if "," in store:
         active_slugs = [s.strip() for s in store.split(",") if s.strip()]
     elif store == "all" or not store:
-        active_slugs = list(ALL_STORE_SLUGS)
+        # Try to use only the user's suburb stores; fall back to ALL_STORE_SLUGS if
+        # there is no session / no saved preference.
+        _uid_sr = request.session.get("user_id") if hasattr(request, "session") else None
+        _suburb_slugs: list[str] = []
+        if _uid_sr:
+            _pref_sr = db.query(models.UserPreference).filter(
+                models.UserPreference.user_id == _uid_sr
+            ).first()
+            if _pref_sr and _pref_sr.stores:
+                _suburb_slugs = [s.strip() for s in _pref_sr.stores.split(",") if s.strip()]
+        active_slugs = _suburb_slugs if _suburb_slugs else list(ALL_STORE_SLUGS)
     else:
         active_slugs = [store]
 

@@ -22,10 +22,13 @@
          freshOnly: false,
          activeCategory: '',
          subcategories: [],
+         suburbStores: '{{ user_stores | join(",") if user_stores else "all" }}',
          triggerSearch() {
-           // Only override store-input when a specific pill is selected.
-           // When 'all', keep the initial value (the user's saved suburb stores).
-           if (this.activeStore !== 'all') {
+           // 'all' pill → use the user's suburb stores (never the global ALL_STORE_SLUGS).
+           // Specific pill → use that store slug directly.
+           if (this.activeStore === 'all') {
+             document.getElementById('store-input').value = this.suburbStores;
+           } else {
              document.getElementById('store-input').value = this.activeStore;
            }
            document.getElementById('price-min-input').value = this.priceMin;
@@ -249,7 +252,7 @@
     </div>
 
     <!-- Hidden inputs — Alpine keeps them in sync -->
-    <input type="hidden" id="store-input"     name="store"      value="{{ store or 'all' }}">
+    <input type="hidden" id="store-input"     name="store"      value="{{ user_stores | join(',') if user_stores and (store == 'all' or not store) else store or 'all' }}">
     <input type="hidden" id="price-min-input" name="price_min"  value="">
     <input type="hidden" id="price-max-input" name="price_max"  value="">
     <input type="hidden" id="sort-input"      name="sort"       value="{{ default_sort or '' }}">
