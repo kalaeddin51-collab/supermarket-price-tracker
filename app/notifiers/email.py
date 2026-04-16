@@ -138,6 +138,40 @@ def send_digest(subject: str, html_body: str, recipients: list[str],
     return _send_via_smtp(subject, html_body, recipients)
 
 
+def diagnose_resend(api_key: str, from_addr: str, to_addr: str) -> dict:
+    """
+    Send a real minimal email via Resend and return a diagnosis dict:
+      { "ok": bool, "status": int, "detail": str }
+
+    Useful for the settings diagnostics panel to show the exact Resend response.
+    """
+    import httpx
+    if not api_key:
+        return {"ok": False, "status": 0, "detail": "No Resend API key configured."}
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "from":    from_addr,
+                "to":      [to_addr],
+                "subject": "Price Tracker — Email Diagnostics Test",
+                "html":    "<p>This is an automated diagnostics test from your Price Tracker app. "
+                           "If you received this, email delivery is working correctly ✅</p>",
+            },
+            timeout=20,
+        )
+        ok = resp.status_code in (200, 201)
+        try:
+            body = resp.json()
+            detail = body.get("message") or body.get("name") or str(body)
+        except Exception:
+            detail = resp.text[:300]
+        return {"ok": ok, "status": resp.status_code, "detail": detail if not ok else "Email sent successfully ✅"}
+    except Exception as exc:
+        return {"ok": False, "status": 0, "detail": f"{type(exc).__name__}: {exc}"}
+
+
 def build_digest_html(items: list[dict]) -> str:
     """Build a simple HTML email body from a list of alert dicts."""
     rows = ""

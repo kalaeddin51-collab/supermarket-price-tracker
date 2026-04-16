@@ -142,6 +142,10 @@ class NotificationSettings(Base):
     # Resend API key (https://resend.com — works on Railway, no SMTP port needed)
     resend_api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # "From" address used when sending via Resend (must be a verified domain address,
+    # e.g. noreply@yourdomain.com).  Falls back to onboarding@resend.dev if blank.
+    notify_from_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+
     # SMTP credentials (stored locally — never leave this machine)
     smtp_user: Mapped[str | None] = mapped_column(String(254), nullable=True)
     smtp_password: Mapped[str | None] = mapped_column(String(500), nullable=True)

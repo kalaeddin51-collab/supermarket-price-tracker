@@ -802,6 +802,8 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
 
         # Priority: DB value → runtime cache → env var → config
         resend_key = (ns.resend_api_key or "").strip() or get_resend_key()
+        _from_email = (getattr(ns, "notify_from_email", None) or "").strip()
+        resend_from = f"Price Tracker <{_from_email}>" if _from_email else "Price Tracker <onboarding@resend.dev>"
 
         if resend_key:
             # Resend path — works on Railway (HTTPS, no port blocking)
@@ -814,7 +816,7 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
             loop = asyncio.get_event_loop()
             ok = await loop.run_in_executor(
                 None, lambda: send_digest("Price Tracker — Test Email", html, recipients,
-                                          resend_api_key=resend_key)
+                                          resend_api_key=resend_key, resend_from=resend_from)
             )
         elif ns.smtp_user and ns.smtp_password:
             # SMTP fallback — may be blocked on Railway
@@ -835,10 +837,13 @@ async def send_test_email(request: Request, db: Session = Depends(get_db)):
 
         if ok:
             method = "Resend" if resend_key else "SMTP"
-            return JSONResponse({"ok": True, "message": f"Test email sent via {method} to {', '.join(recipients)} ✅"})
+            return JSONResponse({"ok": True, "message": f"Test email sent via {method} to {', '.join(recipients)} ✅ — check your inbox (and spam folder)."})
         else:
             detail = getattr(send_digest, "_last_error", "") or "unknown error"
-            return JSONResponse({"ok": False, "error": f"Send failed: {detail}"})
+            hint = ""
+            if "only send testing emails" in detail or "can only send" in detail.lower():
+                hint = " — Resend sandbox restriction: you must verify a domain (see the setup guide in Settings) or ensure your Resend account email matches your notification email."
+            return JSONResponse({"ok": False, "error": f"Send failed: {detail}{hint}"})
     except Exception as exc:
         print(f"[api/send-test-email] Unexpected error: {exc}")
         return JSONResponse({"ok": False, "error": f"Server error: {exc}"})
@@ -1791,6 +1796,7 @@ async def save_settings(
     poll_frequency: str = Form("weekly"),
     poll_day: int = Form(0),
     resend_api_key: str = Form(""),
+    notify_from_email: str = Form(""),
     smtp_user: str = Form(""),
     smtp_password: str = Form(""),
     default_sort: str = Form(""),
@@ -1824,6 +1830,7 @@ async def save_settings(
     if resend_api_key:
         ns.resend_api_key = resend_api_key
         set_resend_key(resend_api_key)  # cache in memory so it survives within this process
+    ns.notify_from_email = notify_from_email.strip() or None
     ns.smtp_user      = smtp_user     or None
     if smtp_password:
         ns.smtp_password = smtp_password
@@ -1992,12 +1999,17 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
 </body>
 </html>"""
 
+    # Resolve "From" address — use configured from email, fall back to Resend sandbox default
+    _from_addr = (getattr(ns, "notify_from_email", None) or "").strip()
+    resend_from = f"Price Tracker <{_from_addr}>" if _from_addr else "Price Tracker <onboarding@resend.dev>"
+
     try:
         loop = asyncio.get_event_loop()
         subj = f"🛒 Price Tracker — Watchlist ({len(entries)} items)"
         _rk  = resend_key or None
         ok = await loop.run_in_executor(None, lambda: send_digest(subj, html, recipients,
-                                                                   resend_api_key=_rk))
+                                                                   resend_api_key=_rk,
+                                                                   resend_from=resend_from))
         err_detail = ""
     except Exception as exc:
         ok = False
@@ -2008,16 +2020,45 @@ async def test_email(request: Request, db: Session = Depends(get_db)):
         method = "Resend" if resend_key else "SMTP"
         return HTMLResponse(
             f'<div class="rounded-xl px-4 py-3 bg-green-50 border border-green-200 text-green-800 text-sm">'
-            f'✅ Test email sent via {method} to <strong>{", ".join(recipients)}</strong> — check your inbox!'
+            f'✅ Test email sent via {method} to <strong>{", ".join(recipients)}</strong> — check your inbox '
+            f'(and spam folder)!'
             f'</div>'
         )
     else:
         detail = getattr(send_digest, "_last_error", "") or err_detail or "unknown error"
         return HTMLResponse(
             f'<div class="rounded-xl px-4 py-3 bg-red-50 border border-red-200 text-red-800 text-sm">'
-            f'❌ Send failed: {detail}'
+            f'❌ Send failed: <code>{detail}</code><br>'
+            f'<span class="text-xs mt-1 block text-red-600">If you see "You can only send testing emails to your own email address", '
+            f'you need to verify a domain in Resend — see the setup guide in the email section above.</span>'
             f'</div>'
         )
+
+
+@app.post("/api/email-diagnose")
+async def email_diagnose(request: Request, db: Session = Depends(get_db)):
+    """Run a live Resend delivery test and return a detailed diagnosis JSON."""
+    from app.notifiers.email import diagnose_resend
+    ns = db.query(models.NotificationSettings).first()
+    resend_key = (ns.resend_api_key or "").strip() or get_resend_key()
+    from_email = (getattr(ns, "notify_from_email", None) or "").strip()
+    resend_from = f"Price Tracker <{from_email}>" if from_email else "Price Tracker <onboarding@resend.dev>"
+    recipient   = ns.email_address or ""
+
+    if not resend_key:
+        return JSONResponse({"ok": False, "step": "config",
+                             "detail": "No Resend API key found. Add RESEND_API_KEY as a Railway environment variable, or paste it in Settings."})
+    if not recipient:
+        return JSONResponse({"ok": False, "step": "config",
+                             "detail": "No recipient email configured. Add your email in the Email Notifications section."})
+
+    import asyncio as _aio
+    loop = _aio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: diagnose_resend(resend_key, resend_from, recipient))
+    result["from_addr"] = resend_from
+    result["to_addr"]   = recipient
+    result["key_hint"]  = resend_key[:8] + "…" if resend_key else "(none)"
+    return JSONResponse(result)
 
 
 @app.get("/partials/settings/email-preview", response_class=HTMLResponse)

@@ -86,8 +86,44 @@
           <p class="text-xs text-blue-700" x-text="smtp"></p>
         </div>
 
+        <!-- Resend setup guide -->
+        <div class="mt-4 pt-4 border-t border-gray-50"
+             x-data="{ open: false }">
+          <button type="button" @click="open = !open"
+                  class="flex items-center gap-2 text-xs font-semibold text-brand hover:text-brand-dark transition-colors mb-2">
+            <svg class="w-3.5 h-3.5 transition-transform" :class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            Email setup guide (click to expand)
+          </button>
+          <div x-show="open" x-cloak x-transition class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3 text-xs text-blue-900 space-y-2.5">
+            <p class="font-semibold text-sm text-blue-800">How to get emails working on Railway</p>
+            <p>Railway blocks SMTP ports (587 / 465), so Gmail/SMTP won't work. Use <strong>Resend</strong> instead — it sends via HTTPS and the free plan covers 3,000 emails/month.</p>
+
+            <div class="space-y-1.5">
+              <p class="font-semibold text-blue-800">Option A — Quickest (no domain needed)</p>
+              <ol class="list-decimal list-inside space-y-1 text-blue-700">
+                <li>Sign up at <a href="https://resend.com" target="_blank" class="underline font-medium">resend.com</a> using <strong>kalaeddin51@gmail.com</strong> as your account email.</li>
+                <li>Create an API key and paste it in the <em>Resend API Key</em> field below.</li>
+                <li>Set your recipient email (above) to the <strong>same</strong> Gmail address.</li>
+                <li>Leave the <em>From email</em> field blank — the app uses Resend's sandbox sender.</li>
+              </ol>
+              <p class="text-[11px] text-blue-600 italic">⚠ Resend's sandbox can only deliver to the email you used to create your account.</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <p class="font-semibold text-blue-800">Option B — Any recipient (requires a domain)</p>
+              <ol class="list-decimal list-inside space-y-1 text-blue-700">
+                <li>Add a domain in your <a href="https://resend.com/domains" target="_blank" class="underline font-medium">Resend dashboard</a> and verify its DNS records.</li>
+                <li>Enter a from address like <code class="bg-blue-100 px-1 rounded">noreply@yourdomain.com</code> in the <em>From email</em> field below.</li>
+                <li>Now you can send to <em>any</em> email address.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
         <!-- Resend API key -->
-        <div class="mt-4 pt-4 border-t border-gray-50">
+        <div class="mt-2">
           <div class="flex items-center gap-2 mb-2">
             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Resend API Key</label>
             {% if resend_from_env %}
@@ -99,10 +135,9 @@
 
           {% if not resend_from_env %}
           <div class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3 text-xs text-amber-800">
-            <strong>Important:</strong> Railway resets the database on every deploy, wiping any key saved here.
-            Add <code class="bg-amber-100 px-1 rounded font-mono">RESEND_API_KEY</code> as a
+            <strong>Tip:</strong> Add <code class="bg-amber-100 px-1 rounded font-mono">RESEND_API_KEY</code> as a
             <a href="https://railway.app" target="_blank" class="underline font-semibold">Railway environment variable</a>
-            so it persists permanently. You can still paste it below to test right now.
+            so it persists across deploys. You can still paste it below to save it to the database.
           </div>
           {% endif %}
 
@@ -116,26 +151,37 @@
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
           <p class="text-xs text-gray-400 mt-1">Leave blank to keep the existing key.</p>
         </div>
+
+        <!-- From email (for verified Resend domain — Option B) -->
+        <div class="mt-4 pt-4 border-t border-gray-50">
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">From Email <span class="font-normal normal-case text-gray-400">(optional — required for Option B)</span></label>
+          <p class="text-xs text-gray-400 mb-2">Only needed if you've verified a domain in Resend. Leave blank when using the sandbox (Option A).</p>
+          <input type="email" name="notify_from_email"
+            value="{{ ns.notify_from_email or '' }}"
+            placeholder="noreply@yourdomain.com"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+        </div>
       </div>
     </div>
 
     <!-- ── Test Email Send ──────────────────────────────────────────────── -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-         x-data="{ loading: false, result: null }">
-      <div class="px-5 py-4 flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-semibold text-gray-800">Send a test email</p>
-          <p class="text-xs text-gray-500 mt-0.5">Sends a sample watchlist email to your configured recipients.</p>
-        </div>
+         x-data="{ loading: false, diagLoading: false, result: null, diag: null }">
+      <div class="px-5 py-4 border-b border-gray-50">
+        <p class="text-sm font-semibold text-gray-800">Test email delivery</p>
+        <p class="text-xs text-gray-500 mt-0.5">Make sure you click <strong>Save Settings</strong> first after adding your API key.</p>
+      </div>
+      <div class="px-5 py-4 flex flex-wrap items-center gap-3">
+        <!-- Send test -->
         <button type="button"
           :disabled="loading"
-          @click="loading = true; result = null;
+          @click="loading = true; result = null; diag = null;
             fetch('/api/send-test-email', {method:'POST', credentials:'same-origin'})
               .then(r => r.json())
               .then(d => { result = d; loading = false; })
               .catch(e => { result = {ok:false,error:'Network error — ' + e.message}; loading = false; })"
-          class="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-all
-                 bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1.5">
+          class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all
+                 bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50">
           <svg x-show="!loading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
           </svg>
@@ -143,13 +189,56 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
           </svg>
-          <span x-text="loading ? 'Sending…' : 'Send test'"></span>
+          <span x-text="loading ? 'Sending…' : 'Send test email'"></span>
+        </button>
+        <!-- Diagnose -->
+        <button type="button"
+          :disabled="diagLoading"
+          @click="diagLoading = true; result = null; diag = null;
+            fetch('/api/email-diagnose', {method:'POST', credentials:'same-origin'})
+              .then(r => r.json())
+              .then(d => { diag = d; diagLoading = false; })
+              .catch(e => { diag = {ok:false,detail:'Network error — ' + e.message}; diagLoading = false; })"
+          class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all
+                 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50">
+          <svg x-show="!diagLoading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12l2 2 4-4"/>
+          </svg>
+          <svg x-show="diagLoading" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span x-text="diagLoading ? 'Testing…' : 'Run diagnostics'"></span>
         </button>
       </div>
+
+      <!-- Test email result -->
       <div x-show="result" x-cloak class="px-5 pb-4">
         <p :class="result?.ok ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'"
            class="text-xs rounded-xl px-3 py-2 border"
-           x-text="result?.message || result?.error"></p>
+           x-html="result?.message || result?.error"></p>
+      </div>
+
+      <!-- Diagnostics panel -->
+      <div x-show="diag" x-cloak class="px-5 pb-4">
+        <div :class="diag?.ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'"
+             class="rounded-xl border px-4 py-3 text-xs space-y-1.5">
+          <p class="font-semibold" :class="diag?.ok ? 'text-green-800' : 'text-red-800'"
+             x-text="diag?.ok ? '✅ Resend API accepted the email' : '❌ Resend delivery failed'"></p>
+          <div class="text-gray-600 space-y-0.5 font-mono text-[11px]">
+            <p><span class="text-gray-400">Key:  </span> <span x-text="diag?.key_hint || '(none)'"></span></p>
+            <p><span class="text-gray-400">From: </span> <span x-text="diag?.from_addr || '—'"></span></p>
+            <p><span class="text-gray-400">To:   </span> <span x-text="diag?.to_addr || '—'"></span></p>
+            <p><span class="text-gray-400">HTTP: </span> <span x-text="diag?.status || '—'"></span></p>
+            <p><span class="text-gray-400">Msg:  </span> <span x-text="diag?.detail || '—'"></span></p>
+          </div>
+          <template x-if="!diag?.ok && diag?.detail?.includes('can only send')">
+            <p class="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
+              ⚠ <strong>Sandbox restriction:</strong> Your Resend account can only send to the email it was registered with.
+              Either use the same Gmail address, or verify a domain and set a <em>From email</em> above.
+            </p>
+          </template>
+        </div>
       </div>
     </div>
 
