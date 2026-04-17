@@ -1142,6 +1142,14 @@ def _stores_for_suburb(suburb: str) -> list[str]:
 
 CONTACT_RECIPIENT = "kalaeddin51@gmail.com"
 
+@app.get("/monetization", response_class=HTMLResponse)
+async def monetization_page(request: Request):
+    return templates.TemplateResponse(request, "monetization.html", {
+        "page": "monetization",
+        "user": request.session.get("user") if hasattr(request, "session") else None,
+    })
+
+
 @app.get("/contact", response_class=HTMLResponse)
 async def contact_page(request: Request):
     _uid = request.session.get("user_id") if hasattr(request, "session") else None
