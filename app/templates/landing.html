@@ -204,6 +204,7 @@
           {% for slug, label, color in [
             ('woolworths', 'Woolworths', '#007D40'),
             ('coles',      'Coles',      '#E31A2F'),
+            ('aldi',       'Aldi',       '#0050AA'),
             ('harris_farm','Harris Farm','#F27200'),
             ('iga',        'IGA',        '#D2232A'),
           ] %}
@@ -240,7 +241,7 @@
         </ul>
         <div class="flex gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
           <button type="button"
-            @click="selectedStores = ['woolworths','coles','harris_farm','iga_north_sydney','iga_milsons_point','iga_crows_nest']; savePreferences()"
+            @click="selectedStores = ['woolworths','coles','aldi','harris_farm','iga_north_sydney','iga_milsons_point','iga_crows_nest']; savePreferences()"
             class="text-xs text-brand hover:text-brand-dark font-semibold transition-colors">All</button>
           <span class="text-gray-300">|</span>
           <button type="button" @click="selectedStores = []; savePreferences()"
@@ -328,10 +329,11 @@
 
     <!-- Store availability grid (shown after suburb entered, desktop) -->
     <div x-show="hasSuburb" x-cloak class="w-full max-w-xl mt-10">
-      <div class="grid grid-cols-4 gap-2">
+      <div class="grid grid-cols-5 gap-2">
         {% for slug, label, color in [
           ('woolworths','Woolworths','#007D40'),
           ('coles','Coles','#E31A2F'),
+          ('aldi','Aldi','#0050AA'),
           ('harris_farm','Harris Farm','#F27200'),
           ('iga','IGA','#D2232A'),
         ] %}
@@ -358,10 +360,11 @@
 
     <!-- Empty state: no suburb yet -->
     <div x-show="!hasSuburb" class="mt-12 text-center max-w-sm">
-      <div class="grid grid-cols-2 gap-3 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {% for slug, label, color, desc in [
           ('woolworths','Woolworths','#007D40',"Australia's largest supermarket"),
           ('coles','Coles','#E31A2F',"Fresh food and groceries"),
+          ('aldi','Aldi','#0050AA',"Everyday low prices"),
           ('harris_farm','Harris Farm','#F27200',"Fresh produce specialist"),
           ('iga','IGA','#D2232A',"Local independent stores"),
         ] %}
