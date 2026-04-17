@@ -288,6 +288,19 @@ class AldiScraper(BaseScraper):
 
     # ── public interface ──────────────────────────────────────────────────
 
+    # Categories that only match a query by coincidence (e.g. "Easter eggs"
+    # when searching for actual eggs).  Suppress them unless the user's query
+    # is itself about confectionery / snacks.
+    _CONFECTIONERY_CATEGORIES = frozenset({
+        "snacks & confectionery", "confectionery", "chocolate",
+        "lollies & candy", "snacks", "biscuits & crackers",
+    })
+    _CONFECTIONERY_QUERY_TERMS = frozenset({
+        "chocolate", "candy", "lolly", "lollies", "confectionery",
+        "sweet", "sweets", "snack", "snacks", "biscuit", "biscuits",
+        "easter", "cracker", "crackers",
+    })
+
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
         try:
             raw = await self._fetch_page(query)
@@ -295,9 +308,16 @@ class AldiScraper(BaseScraper):
             return []
 
         # Aldi's search returns category-level matches (e.g. searching "eggs"
-        # returns all of "Dairy, Eggs & Fridge").  Keep only products whose
-        # name contains at least one query token so we drop irrelevant hits.
-        query_tokens = {t.lower() for t in query.split() if len(t) > 2}
+        # also returns all of "Dairy, Eggs & Fridge" and "Snacks & Confectionery"
+        # Easter egg products).  Apply two filters:
+        #   1. Name token filter — product name must contain at least one query term.
+        #   2. Category filter — skip confectionery/snack products unless the
+        #      query is itself about confectionery.
+        query_lower = query.lower()
+        query_tokens = {t for t in query_lower.split() if len(t) > 2}
+        is_confectionery_query = bool(
+            query_tokens & self._CONFECTIONERY_QUERY_TERMS
+        )
 
         results: list[SearchResult] = []
         seen: set[str] = set()
@@ -305,10 +325,16 @@ class AldiScraper(BaseScraper):
             r = _product_to_result(p)
             if not r:
                 continue
-            if query_tokens:
-                name_lower = r.name.lower()
-                if not any(tok in name_lower for tok in query_tokens):
+
+            # 1. Name must contain at least one query token
+            if query_tokens and not any(tok in r.name.lower() for tok in query_tokens):
+                continue
+
+            # 2. Skip confectionery/snack category products for non-confectionery queries
+            if not is_confectionery_query and r.category:
+                if r.category.lower() in self._CONFECTIONERY_CATEGORIES:
                     continue
+
             if r.external_id not in seen:
                 seen.add(r.external_id)
                 results.append(r)

@@ -49,6 +49,15 @@
   document.addEventListener('htmx:afterSwap', function (e) {
     if (e.detail && e.detail.target && e.detail.target.id === 'store-results') {
       window.refreshStoreCards();
+      // When the suburb changes, drop any selected stores that are NOT in the
+      // new suburb's store list (e.g. IGA King St from a previous Newtown session).
+      var availableSlugs = new Set();
+      document.querySelectorAll('#store-results [data-select-slugs]').forEach(function (btn) {
+        try { JSON.parse(btn.dataset.selectSlugs).forEach(function (s) { availableSlugs.add(s); }); } catch (_) {}
+      });
+      if (availableSlugs.size > 0 && window.__storeState) {
+        window.__storeState.filterToSuburb(Array.from(availableSlugs));
+      }
     }
   });
 
@@ -78,6 +87,12 @@
             self.savePreferences(); window.refreshStoreCards();
           },
           isSelected:  function (slug)  { return self.selectedStores.includes(slug); },
+          filterToSuburb: function (slugs) {
+            var allowed = new Set(slugs);
+            self.selectedStores = self.selectedStores.filter(function (s) { return allowed.has(s); });
+            self.savePreferences();
+            window.refreshStoreCards();
+          },
         };
 
         /* Auto-load saved suburb into the store results panel */
