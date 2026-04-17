@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monetization Strategy &amp; Financial Model</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brand: #2563eb;
+      --brand-light: #eff6ff;
+      --green: #16a34a;
+      --red: #dc2626;
+      --gray: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+    }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: #111827; }
+
+    /* ── Layout ── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--gray); margin-bottom: 2rem; font-size: 0.95rem; }
+
+    section { margin-bottom: 2.5rem; }
+    h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 1rem; border-left: 3px solid var(--brand); padding-left: 0.75rem; }
+    h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; color: #1f2937; }
+
+    /* ── Strategy cards ── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+    .card {
+      background: #fff; border: 1px solid var(--border); border-radius: 0.75rem;
+      padding: 1.1rem; display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; }
+    .badge {
+      font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.5rem;
+      border-radius: 999px; white-space: nowrap;
+    }
+    .badge-easy   { background: #dcfce7; color: #15803d; }
+    .badge-medium { background: #fef9c3; color: #a16207; }
+    .badge-hard   { background: #fee2e2; color: #b91c1c; }
+    .card p { font-size: 0.82rem; color: var(--gray); line-height: 1.55; }
+    .card .rev { font-size: 0.8rem; font-weight: 600; color: var(--green); margin-top: auto; }
+
+    /* ── Sliders ── */
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 700px) { .model-grid { grid-template-columns: 1fr; } }
+
+    .sliders { display: flex; flex-direction: column; gap: 1rem; }
+    .slider-row { display: flex; flex-direction: column; gap: 0.2rem; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 0.83rem; }
+    .slider-label span:last-child { font-weight: 700; color: var(--brand); }
+    input[type=range] { width: 100%; accent-color: var(--brand); cursor: pointer; }
+
+    /* ── KPIs ── */
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+    @media (max-width: 500px) { .kpis { grid-template-columns: 1fr 1fr; } }
+    .kpi { background: #fff; border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.75rem 1rem; }
+    .kpi-label { font-size: 0.72rem; color: var(--gray); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-value { font-size: 1.3rem; font-weight: 700; color: #111; margin-top: 0.1rem; }
+    .kpi-value.green { color: var(--green); }
+    .kpi-value.red   { color: var(--red); }
+
+    /* ── Chart ── */
+    .chart-wrap { background: #fff; border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; }
+    canvas { max-height: 280px; }
+
+    /* ── Breakdown table ── */
+    .breakdown { background: #fff; border: 1px solid var(--border); border-radius: 0.75rem; overflow: hidden; margin-top: 1.25rem; }
+    .breakdown table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .breakdown th { background: var(--brand-light); color: var(--brand); font-weight: 700; padding: 0.5rem 0.8rem; text-align: left; }
+    .breakdown td { padding: 0.45rem 0.8rem; border-top: 1px solid var(--border); }
+    .breakdown tr:last-child td { font-weight: 700; background: var(--bg); }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .tab {
+      padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+      border: 1.5px solid var(--border); background: #fff; cursor: pointer; color: var(--gray);
+      transition: all 0.15s;
+    }
+    .tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+    /* ── Scenario labels ── */
+    .scenario-note { font-size: 0.78rem; color: var(--gray); margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Monetization Strategy &amp; Financial Model</h1>
+  <p class="subtitle">Interactive revenue projections for the Supermarket Price Tracker — adjust assumptions below to model realistic outcomes.</p>
+
+  <!-- ══════════════════════════════════════════════════════════
+       1. STRATEGY OVERVIEW
+  ═══════════════════════════════════════════════════════════ -->
+  <section>
+    <h2>Revenue Strategies</h2>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Affiliate / Referral Links</h3>
+          <span class="badge badge-easy">Easy</span>
+        </div>
+        <p>Add tracked referral links to Woolworths, Coles, and Harris Farm product pages. Earn 1–3% on orders placed via click-through. Works today with zero friction.</p>
+        <div class="rev">$200–$800 / mo at 5 k MAU</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Freemium — Pro Tier</h3>
+          <span class="badge badge-medium">Medium</span>
+        </div>
+        <p>Free: 1 shopping list, 3 watchlist items, weekly price updates.<br>
+           Pro ($4.99/mo): unlimited lists &amp; watchlist, daily scrapes, price history charts, CSV export.</p>
+        <div class="rev">$500–$5 k / mo at 2–5% conversion</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Display Advertising</h3>
+          <span class="badge badge-easy">Easy</span>
+        </div>
+        <p>Google AdSense or Carbon Ads in sidebar / below basket totals. Low CPM (~$3–6 AU) but completely passive once set up. Hide ads for Pro users.</p>
+        <div class="rev">$50–$300 / mo at 10 k MAU</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Data Licensing</h3>
+          <span class="badge badge-hard">Hard</span>
+        </div>
+        <p>Aggregate anonymised basket-price time-series and sell to FMCG brands, market researchers, or financial analysts tracking CPI proxies. Requires legal review.</p>
+        <div class="rev">$2 k–$20 k / year per client</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>White-Label / API</h3>
+          <span class="badge badge-hard">Hard</span>
+        </div>
+        <p>Expose a REST API for price lookups and basket comparisons. Target loyalty apps, meal-kit services, and personal finance tools. Charge per request or flat monthly.</p>
+        <div class="rev">$500–$5 k / mo per B2B client</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Sponsored Store Features</h3>
+          <span class="badge badge-medium">Medium</span>
+        </div>
+        <p>Sponsored "Specials" badge or featured store placement negotiated directly with IGA, Harris Farm, or Aldi AU. Performance-based CPM or flat sponsorship.</p>
+        <div class="rev">$500–$3 k / mo per sponsor</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       2. INTERACTIVE FINANCIAL MODEL
+  ═══════════════════════════════════════════════════════════ -->
+  <section>
+    <h2>Interactive Financial Model</h2>
+
+    <!-- Scenario tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="loadScenario('conservative')">Conservative</button>
+      <button class="tab" onclick="loadScenario('base')">Base Case</button>
+      <button class="tab" onclick="loadScenario('optimistic')">Optimistic</button>
+    </div>
+    <p class="scenario-note" id="scenarioNote">Conservative: slow organic growth, affiliate only, no paid marketing.</p>
+
+    <div class="model-grid">
+      <!-- Left: sliders -->
+      <div class="sliders">
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Monthly Active Users (MAU)</span>
+            <span id="lblMau">2,000</span>
+          </div>
+          <input type="range" id="slMau" min="500" max="100000" step="500" value="2000" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Monthly Growth Rate</span>
+            <span id="lblGrowth">5%</span>
+          </div>
+          <input type="range" id="slGrowth" min="0" max="30" step="0.5" value="5" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Affiliate Click Rate (of MAU)</span>
+            <span id="lblAffClick">8%</span>
+          </div>
+          <input type="range" id="slAffClick" min="0" max="30" step="0.5" value="8" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Affiliate Avg. Order Value ($)</span>
+            <span id="lblAffAov">$85</span>
+          </div>
+          <input type="range" id="slAffAov" min="20" max="300" step="5" value="85" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Affiliate Commission Rate</span>
+            <span id="lblAffRate">2%</span>
+          </div>
+          <input type="range" id="slAffRate" min="0.5" max="5" step="0.1" value="2" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Pro Tier Price ($/mo)</span>
+            <span id="lblProPrice">$4.99</span>
+          </div>
+          <input type="range" id="slProPrice" min="1.99" max="19.99" step="1" value="4.99" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Pro Conversion Rate (of MAU)</span>
+            <span id="lblProConv">2%</span>
+          </div>
+          <input type="range" id="slProConv" min="0" max="10" step="0.1" value="2" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Ad Revenue ($/1000 MAU/mo)</span>
+            <span id="lblAdRpm">$18</span>
+          </div>
+          <input type="range" id="slAdRpm" min="0" max="80" step="1" value="18" oninput="update()" />
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Monthly Costs (hosting + infra)</span>
+            <span id="lblCosts">$45</span>
+          </div>
+          <input type="range" id="slCosts" min="0" max="500" step="5" value="45" oninput="update()" />
+        </div>
+
+      </div>
+
+      <!-- Right: KPIs + chart -->
+      <div>
+        <div class="kpis">
+          <div class="kpi">
+            <div class="kpi-label">Month 1 Revenue</div>
+            <div class="kpi-value" id="kpiRev1">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Month 6 Revenue</div>
+            <div class="kpi-value" id="kpiRev6">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Month 12 Revenue</div>
+            <div class="kpi-value" id="kpiRev12">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Month 1 Profit</div>
+            <div class="kpi-value" id="kpiProfit1">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">12-mo Total Revenue</div>
+            <div class="kpi-value" id="kpiTotal">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Month 12 MAU</div>
+            <div class="kpi-value" id="kpiMau12">—</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="revenueChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breakdown table -->
+    <div class="breakdown">
+      <table id="breakdownTable">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>MAU</th>
+            <th>Affiliate ($)</th>
+            <th>Pro Subs ($)</th>
+            <th>Ads ($)</th>
+            <th>Total Rev ($)</th>
+            <th>Costs ($)</th>
+            <th>Profit ($)</th>
+          </tr>
+        </thead>
+        <tbody id="breakdownBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       3. UNIT ECONOMICS
+  ═══════════════════════════════════════════════════════════ -->
+  <section>
+    <h2>Unit Economics Summary</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Affiliate Revenue per MAU</h3>
+        <p>Click rate × AOV × commission = revenue per active user. At 8% CTR, $85 AOV, 2% commission: <strong>$0.136 / MAU / mo</strong>. Scales linearly.</p>
+      </div>
+      <div class="card">
+        <h3>Pro LTV</h3>
+        <p>Avg. churn for tools like this: ~15%/mo → avg. lifetime 6–7 months → LTV at $4.99 = <strong>~$30–$35 / subscriber</strong>. CAC should be &lt; $10.</p>
+      </div>
+      <div class="card">
+        <h3>Break-even (hosting only)</h3>
+        <p>At $45/mo hosting (Railway Hobby): need <strong>330 MAU</strong> at base affiliate assumptions, or just <strong>9 Pro subscribers</strong>. Very low bar.</p>
+      </div>
+      <div class="card">
+        <h3>$1 k/mo Revenue Target</h3>
+        <p>Affiliate only: ~7,400 MAU. Pro subs only: ~201 subs. Mixed (60/40): ~4,000 MAU at 2% Pro conv. Achievable within 12 months with SEO + referrals.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ─── Chart init ───────────────────────────────────────────────────────────────
+const ctx = document.getElementById('revenueChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Affiliate',  data: [], backgroundColor: '#3b82f6', stack: 'rev' },
+      { label: 'Pro Subs',   data: [], backgroundColor: '#10b981', stack: 'rev' },
+      { label: 'Ads',        data: [], backgroundColor: '#f59e0b', stack: 'rev' },
+      { label: 'Costs',      data: [], backgroundColor: '#ef4444', stack: 'cost', type: 'line',
+        borderColor: '#ef4444', borderWidth: 2, pointRadius: 3, fill: false },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.y.toFixed(0) } }
+    },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: false, ticks: { callback: v => '$' + v } }
+    }
+  }
+});
+
+// ─── Scenarios ────────────────────────────────────────────────────────────────
+const SCENARIOS = {
+  conservative: {
+    note: 'Conservative: slow organic growth, affiliate only, no paid marketing.',
+    mau: 1000, growth: 3, affClick: 5, affAov: 70, affRate: 1.5,
+    proPrice: 4.99, proConv: 0.5, adRpm: 0, costs: 25
+  },
+  base: {
+    note: 'Base Case: steady SEO-driven growth, affiliate + some Pro subscribers.',
+    mau: 2000, growth: 7, affClick: 8, affAov: 85, affRate: 2,
+    proPrice: 4.99, proConv: 2, adRpm: 18, costs: 45
+  },
+  optimistic: {
+    note: 'Optimistic: press coverage / viral growth, strong Pro conversion, ad deals.',
+    mau: 5000, growth: 15, affClick: 12, affAov: 110, affRate: 2.5,
+    proPrice: 7.99, proConv: 4, adRpm: 40, costs: 80
+  }
+};
+
+function loadScenario(key) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  const s = SCENARIOS[key];
+  document.getElementById('scenarioNote').textContent = s.note;
+  document.getElementById('slMau').value    = s.mau;
+  document.getElementById('slGrowth').value = s.growth;
+  document.getElementById('slAffClick').value = s.affClick;
+  document.getElementById('slAffAov').value   = s.affAov;
+  document.getElementById('slAffRate').value  = s.affRate;
+  document.getElementById('slProPrice').value = s.proPrice;
+  document.getElementById('slProConv').value  = s.proConv;
+  document.getElementById('slAdRpm').value    = s.adRpm;
+  document.getElementById('slCosts').value    = s.costs;
+  update();
+}
+
+// ─── Main update ─────────────────────────────────────────────────────────────
+function fmt(n) { return '$' + n.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function fmtK(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k' : n.toLocaleString(); }
+
+function update() {
+  const mau0     = +document.getElementById('slMau').value;
+  const growth   = +document.getElementById('slGrowth').value / 100;
+  const affClick = +document.getElementById('slAffClick').value / 100;
+  const affAov   = +document.getElementById('slAffAov').value;
+  const affRate  = +document.getElementById('slAffRate').value / 100;
+  const proPrice = +document.getElementById('slProPrice').value;
+  const proConv  = +document.getElementById('slProConv').value / 100;
+  const adRpm    = +document.getElementById('slAdRpm').value;
+  const costs    = +document.getElementById('slCosts').value;
+
+  // Update labels
+  document.getElementById('lblMau').textContent    = fmtK(mau0);
+  document.getElementById('lblGrowth').textContent = (growth*100).toFixed(1) + '%';
+  document.getElementById('lblAffClick').textContent = (affClick*100).toFixed(1) + '%';
+  document.getElementById('lblAffAov').textContent   = '$' + affAov;
+  document.getElementById('lblAffRate').textContent  = (affRate*100).toFixed(1) + '%';
+  document.getElementById('lblProPrice').textContent = '$' + (+proPrice).toFixed(2);
+  document.getElementById('lblProConv').textContent  = (proConv*100).toFixed(1) + '%';
+  document.getElementById('lblAdRpm').textContent    = '$' + adRpm;
+  document.getElementById('lblCosts').textContent    = '$' + costs;
+
+  // Build monthly data
+  const months = 12;
+  const labels = [], affArr = [], proArr = [], adArr = [], costArr = [], totalArr = [];
+  let totalRevAll = 0;
+
+  for (let i = 1; i <= months; i++) {
+    const mau = Math.round(mau0 * Math.pow(1 + growth, i - 1));
+    const aff = mau * affClick * affAov * affRate;
+    const pro = mau * proConv * proPrice;
+    const ad  = (mau / 1000) * adRpm;
+    const rev = aff + pro + ad;
+    totalRevAll += rev;
+
+    labels.push('Mo ' + i);
+    affArr.push(+aff.toFixed(2));
+    proArr.push(+pro.toFixed(2));
+    adArr.push(+ad.toFixed(2));
+    costArr.push(costs);
+    totalArr.push(+rev.toFixed(2));
+  }
+
+  // KPIs
+  const rev1  = totalArr[0], rev6  = totalArr[5], rev12 = totalArr[11];
+  const profit1 = rev1 - costs;
+  const mau12  = Math.round(mau0 * Math.pow(1 + growth, 11));
+
+  document.getElementById('kpiRev1').textContent   = fmt(rev1);
+  document.getElementById('kpiRev6').textContent   = fmt(rev6);
+  document.getElementById('kpiRev12').textContent  = fmt(rev12);
+  document.getElementById('kpiTotal').textContent  = fmt(totalRevAll);
+  document.getElementById('kpiMau12').textContent  = fmtK(mau12);
+
+  const p1el = document.getElementById('kpiProfit1');
+  p1el.textContent = fmt(profit1);
+  p1el.className = 'kpi-value ' + (profit1 >= 0 ? 'green' : 'red');
+
+  // Chart
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = affArr;
+  chart.data.datasets[1].data = proArr;
+  chart.data.datasets[2].data = adArr;
+  chart.data.datasets[3].data = costArr;
+  chart.update();
+
+  // Breakdown table
+  const tbody = document.getElementById('breakdownBody');
+  tbody.innerHTML = '';
+  for (let i = 0; i < months; i++) {
+    const mau = Math.round(mau0 * Math.pow(1 + growth, i));
+    const profit = totalArr[i] - costs;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>Month ${i+1}</td>
+      <td>${fmtK(mau)}</td>
+      <td>${fmt(affArr[i])}</td>
+      <td>${fmt(proArr[i])}</td>
+      <td>${fmt(adArr[i])}</td>
+      <td><strong>${fmt(totalArr[i])}</strong></td>
+      <td class="neg">${fmt(costs)}</td>
+      <td class="${profit >= 0 ? 'pos' : 'neg'}">${fmt(profit)}</td>
+    `;
+    tbody.appendChild(row);
+  }
+  // Totals row
+  const totalProfit = totalRevAll - costs * months;
+  const totRow = document.createElement('tr');
+  totRow.innerHTML = `
+    <td colspan="5"><strong>12-Month Total</strong></td>
+    <td><strong>${fmt(totalRevAll)}</strong></td>
+    <td class="neg"><strong>${fmt(costs * months)}</strong></td>
+    <td class="${totalProfit >= 0 ? 'pos' : 'neg'}"><strong>${fmt(totalProfit)}</strong></td>
+  `;
+  tbody.appendChild(totRow);
+}
+
+// Init
+update();
+</script>
+</body>
+</html>

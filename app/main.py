@@ -261,6 +261,7 @@ def require_user(request: Request, db: Session = Depends(get_db)):
 STORE_LABELS = {
     "woolworths":            "Woolworths",
     "coles":                 "Coles",
+    "aldi":                  "Aldi",
     # Harris Farm — individual locations
     "harris_farm":           "Harris Farm",          # legacy
     "harris_farm_cammeray":  "HF Cammeray",
@@ -279,6 +280,7 @@ STORE_LABELS = {
 STORE_COLORS = {
     "woolworths":            "#007D40",
     "coles":                 "#E31A2F",
+    "aldi":                  "#0050AA",
     # Harris Farm — all share the brand orange
     "harris_farm":           "#F27200",
     "harris_farm_cammeray":  "#F27200",
@@ -306,6 +308,12 @@ STORE_INFO = {
         "address":   None,
         "maps_url":  None,
         "website":   "https://www.coles.com.au",
+    },
+    "aldi": {
+        "full_name": "Aldi",
+        "address":   "National — uniform pricing across all stores",
+        "maps_url":  None,
+        "website":   "https://www.aldi.com.au",
     },
     "harris_farm": {
         "full_name": "Harris Farm Markets",
@@ -373,7 +381,7 @@ STORE_INFO = {
 }
 
 ALL_STORE_SLUGS = [
-    "woolworths", "coles",
+    "woolworths", "coles", "aldi",
     "harris_farm_cammeray", "harris_farm_mosman",
     "harris_farm_lane_cove", "harris_farm_broadway",
     "iga_north_sydney", "iga_milsons_point", "iga_crows_nest",
@@ -388,6 +396,8 @@ async def _search_one_store(store_slug: str, query: str):
             from app.scrapers.woolworths import WoolworthsScraper as Cls
         elif store_slug == "coles":
             from app.scrapers.coles import ColesScraper as Cls
+        elif store_slug == "aldi":
+            from app.scrapers.aldi import AldiScraper as Cls
         elif store_slug == "harris_farm_cammeray":
             from app.scrapers.harris_farm import HarrisFarmCammerayScraper as Cls
         elif store_slug == "harris_farm_mosman":
@@ -1455,6 +1465,7 @@ async def search_results(
 
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
+    from app.scrapers.aldi import AldiScraper
     from app.scrapers.harris_farm import (
         HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
         HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
@@ -1468,6 +1479,7 @@ async def search_results(
     _scraper_map = {
         "woolworths":            WoolworthsScraper,
         "coles":                 ColesScraper,
+        "aldi":                  AldiScraper,
         "harris_farm":           HarrisFarmScraper,           # legacy
         "harris_farm_cammeray":  HarrisFarmCammerayScraper,
         "harris_farm_mosman":    HarrisFarmMosmanScraper,
@@ -2441,6 +2453,7 @@ async def search_shopping_item(
 
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
+    from app.scrapers.aldi import AldiScraper
     from app.scrapers.harris_farm import (
         HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
         HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
@@ -2450,6 +2463,7 @@ async def search_shopping_item(
     tasks = [
         run_scraper(WoolworthsScraper),
         run_scraper(ColesScraper),
+        run_scraper(AldiScraper),
         run_scraper(HarrisFarmCammerayScraper),
         run_scraper(HarrisFarmMosmanScraper),
         run_scraper(HarrisFarmLaneCoveScraper),
@@ -2507,6 +2521,7 @@ async def search_all_shopping_items(
 
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
+    from app.scrapers.aldi import AldiScraper
     from app.scrapers.harris_farm import (
         HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
         HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
@@ -2529,6 +2544,7 @@ async def search_all_shopping_items(
             tasks = [
                 run_scraper(WoolworthsScraper),
                 run_scraper(ColesScraper),
+                run_scraper(AldiScraper),
                 run_scraper(HarrisFarmCammerayScraper),
                 run_scraper(HarrisFarmMosmanScraper),
                 run_scraper(HarrisFarmLaneCoveScraper),
@@ -2591,6 +2607,7 @@ async def bulk_search_shopping_items(
 
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
+    from app.scrapers.aldi import AldiScraper
     from app.scrapers.harris_farm import (
         HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
         HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
@@ -2614,6 +2631,7 @@ async def bulk_search_shopping_items(
             tasks = [
                 run_scraper(WoolworthsScraper),
                 run_scraper(ColesScraper),
+                run_scraper(AldiScraper),
                 run_scraper(HarrisFarmCammerayScraper),
                 run_scraper(HarrisFarmMosmanScraper),
                 run_scraper(HarrisFarmLaneCoveScraper),
