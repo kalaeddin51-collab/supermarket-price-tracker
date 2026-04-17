@@ -294,11 +294,22 @@ class AldiScraper(BaseScraper):
         except Exception:
             return []
 
+        # Aldi's search returns category-level matches (e.g. searching "eggs"
+        # returns all of "Dairy, Eggs & Fridge").  Keep only products whose
+        # name contains at least one query token so we drop irrelevant hits.
+        query_tokens = {t.lower() for t in query.split() if len(t) > 2}
+
         results: list[SearchResult] = []
         seen: set[str] = set()
         for p in raw:
             r = _product_to_result(p)
-            if r and r.external_id not in seen:
+            if not r:
+                continue
+            if query_tokens:
+                name_lower = r.name.lower()
+                if not any(tok in name_lower for tok in query_tokens):
+                    continue
+            if r.external_id not in seen:
                 seen.add(r.external_id)
                 results.append(r)
             if len(results) >= limit:
