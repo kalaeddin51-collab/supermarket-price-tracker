@@ -1,130 +1,108 @@
 /**
  * Cloudflare Worker — Woolworths Search Proxy
+ * Uses Cloudflare's edge network to bypass Akamai's datacenter IP block.
  *
- * Woolworths blocks all cloud-datacenter IPs (Railway, AWS, GCP) via Akamai.
- * Cloudflare's edge IPs are not on that blocklist, so this Worker can reach
- * Woolworths while Railway cannot.
- *
- * Deploy (free):
- *   1. Go to https://workers.cloudflare.com  (free account, no credit card)
- *   2. Create a new Worker → paste this file → Save & Deploy
- *   3. Set env variable SECRET_TOKEN to any random string you choose
- *   4. Copy the Worker URL (e.g. https://woolworths-proxy.YOUR-NAME.workers.dev)
- *   5. In Railway → Variables, add:
- *        WOOLWORTHS_PROXY_URL = https://woolworths-proxy.YOUR-NAME.workers.dev
- *        WOOLWORTHS_PROXY_TOKEN = <same token you set in step 3>
- *
- * Usage:
- *   GET <worker-url>?q=eggs&limit=20&token=<secret>
+ * Set SECRET_TOKEN env var in Worker settings.
+ * Usage: GET /?q=eggs&limit=20&token=<secret>
  */
 
-const WOW_HOME = "https://www.woolworths.com.au";
+const WOW_HOME   = "https://www.woolworths.com.au";
 const SEARCH_API = `${WOW_HOME}/apis/ui/Search/products`;
-
-const BASE_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-    "AppleWebKit/537.36 (KHTML, like Gecko) " +
-    "Chrome/124.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-AU,en;q=0.9",
-  "Content-Type": "application/json",
-  Origin: WOW_HOME,
-};
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
-    const token = url.searchParams.get("token") || "";
+    // Auth
+    const token  = url.searchParams.get("token") || "";
     const secret = env.SECRET_TOKEN || "";
     if (secret && token !== secret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
-    // ── Params ────────────────────────────────────────────────────────────────
     const query = (url.searchParams.get("q") || "").trim();
-    if (!query) {
-      return new Response(JSON.stringify({ error: "q param required" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    if (!query) return json({ error: "q param required" }, 400);
+
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 36);
 
-    // ── Step 1: warm up — get session cookies from homepage ───────────────────
-    const referer = `${WOW_HOME}/shop/search/products?searchTerm=${encodeURIComponent(query)}`;
-    let cookieHeader = "";
+    // Build realistic browser headers
+    const headers = {
+      "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept":          "application/json, text/plain, */*",
+      "Accept-Language": "en-AU,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Content-Type":    "application/json",
+      "Origin":          WOW_HOME,
+      "Referer":         `${WOW_HOME}/shop/search/products?searchTerm=${encodeURIComponent(query)}`,
+      "sec-ch-ua":       '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      "sec-ch-ua-mobile":   "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest":  "empty",
+      "sec-fetch-mode":  "cors",
+      "sec-fetch-site":  "same-origin",
+    };
+
+    // Step 1 — warm up session (get cookies)
+    let cookieStr = "";
     try {
-      const homeResp = await fetch(WOW_HOME + "/", {
-        headers: { ...BASE_HEADERS, Referer: WOW_HOME + "/" },
+      const home = await fetch(WOW_HOME + "/", {
+        headers: { ...headers, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Content-Type": undefined },
         redirect: "follow",
+        cf: { cacheEverything: false },
       });
-      // Collect all Set-Cookie values into one Cookie header
-      const raw = homeResp.headers.get("set-cookie") || "";
+      const raw = home.headers.get("set-cookie") || "";
       if (raw) {
-        cookieHeader = raw
-          .split(/,(?=[^ ].*?=)/)          // split multi-cookie header
-          .map((c) => c.split(";")[0].trim())
+        cookieStr = raw.split(/,(?=[^ ].*?=)/)
+          .map(c => c.split(";")[0].trim())
+          .filter(Boolean)
           .join("; ");
       }
-    } catch (_) {
-      // Continue without cookies — may still work
-    }
+    } catch (_) {}
 
-    // ── Step 2: search API ────────────────────────────────────────────────────
+    if (cookieStr) headers["Cookie"] = cookieStr;
+
+    // Step 2 — search
     const payload = {
-      Filters: [],
-      IsSpecial: false,
+      Filters: [], IsSpecial: false,
       Location: `/shop/search/products?searchTerm=${query}`,
-      PageNumber: 1,
-      PageSize: limit,
-      SearchTerm: query,
-      SortType: "TraderRelevance",
-      token: "",
-      gpBoost: 0,
-      CategoryVersion: "v2",
+      PageNumber: 1, PageSize: limit,
+      SearchTerm: query, SortType: "TraderRelevance",
+      token: "", gpBoost: 0, CategoryVersion: "v2",
     };
 
-    const searchHeaders = {
-      ...BASE_HEADERS,
-      Referer: referer,
-      "request-id": `|${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}.${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`,
-    };
-    if (cookieHeader) searchHeaders["Cookie"] = cookieHeader;
-
-    let searchResp;
+    let resp;
     try {
-      searchResp = await fetch(SEARCH_API, {
+      resp = await fetch(SEARCH_API, {
         method: "POST",
-        headers: searchHeaders,
+        headers,
         body: JSON.stringify(payload),
+        cf: { cacheEverything: false },
       });
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: "Woolworths fetch failed", detail: String(err) }),
-        { status: 502, headers: { "Content-Type": "application/json" } }
-      );
+      return json({ error: "fetch_failed", detail: String(err) }, 502);
     }
 
-    if (!searchResp.ok) {
-      return new Response(
-        JSON.stringify({ error: `Woolworths returned ${searchResp.status}` }),
-        { status: 502, headers: { "Content-Type": "application/json" } }
-      );
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      return json({
+        error:      `woolworths_${resp.status}`,
+        statusText: resp.statusText,
+        snippet:    body.slice(0, 400),
+        cookies_got: cookieStr.length > 0,
+      }, 502);
     }
 
-    const body = await searchResp.text();
-    return new Response(body, {
+    const data = await resp.text();
+    return new Response(data, {
       status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   },
 };
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
