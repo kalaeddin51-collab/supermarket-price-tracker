@@ -902,6 +902,17 @@ async def save_preferences(
     user_id = request.session.get("user_id")
     if not user_id:
         return JSONResponse({"ok": False}, status_code=401)
+    # If a suburb is provided, only persist stores that are actually available
+    # near that suburb — this prevents stale stores from a previous suburb
+    # (e.g. iga_king_st from Newtown) accumulating in saved preferences.
+    if suburb and stores:
+        allowed = set(_stores_for_suburb(suburb.strip().lower()))
+        filtered = ",".join(
+            s.strip() for s in stores.split(",")
+            if s.strip() and s.strip() in allowed
+        )
+        stores = filtered or stores  # fall back to unfiltered if nothing survives
+
     pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
     if pref:
         pref.suburb = suburb
@@ -1456,6 +1467,17 @@ async def search_results(
     # IGA stores from a previous suburb into results for the current suburb.
     if "," in store:
         active_slugs = [s.strip() for s in store.split(",") if s.strip()]
+        # Always intersect with stores available near the user's saved suburb so that
+        # stores from a previous suburb (e.g. iga_king_st from Newtown) are never
+        # included when the user is now in a different area (e.g. Crows Nest).
+        _uid_filter = request.session.get("user_id") if hasattr(request, "session") else None
+        if _uid_filter:
+            _pref_filter = db.query(models.UserPreference).filter(
+                models.UserPreference.user_id == _uid_filter
+            ).first()
+            if _pref_filter and _pref_filter.suburb:
+                _suburb_slugs_filter = set(_stores_for_suburb(_pref_filter.suburb.strip().lower()))
+                active_slugs = [s for s in active_slugs if s in _suburb_slugs_filter]
     elif store == "all" or not store:
         # Try to use only the user's suburb stores; fall back to ALL_STORE_SLUGS if
         # there is no session / no saved preference.
