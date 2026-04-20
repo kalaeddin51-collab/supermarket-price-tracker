@@ -1,18 +1,19 @@
 """
 Woolworths scraper.
 
-IMPORTANT: Woolworths blocks Railway's datacenter IP range at the Akamai
-network level — they serve "Access Denied" (320 bytes) before any JavaScript
-runs. No client-side approach (proxy, headless browser, TLS impersonation)
-can bypass a network-level IP block.
+Woolworths blocks all cloud-datacenter IPs (Railway, AWS, GCP) via Akamai.
 
-This scraper fails fast so the UI can show a clear message.
-It works fine on residential/home connections (no cloud IP block there).
+FREE FIX — Cloudflare Worker proxy:
+  Cloudflare's edge IPs are not on Akamai's blocklist. Deploy the free Worker
+  in cloudflare-worker/woolworths-proxy.js, then set two env vars in Railway:
+    WOOLWORTHS_PROXY_URL   = https://your-worker.workers.dev
+    WOOLWORTHS_PROXY_TOKEN = <secret you set in the Worker>
 
-Future option: use a residential proxy service like Zyte Smart Proxy (~$5/month)
-which routes through home IPs that Woolworths trusts.
+  This scraper automatically uses the proxy when WOOLWORTHS_PROXY_URL is set,
+  and falls back to a direct request (works on residential connections only).
 """
 import logging
+import os
 import urllib.parse
 import httpx
 from app.scrapers.base import BaseScraper, PriceResult, SearchResult
@@ -20,8 +21,13 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-WOW_HOME = "https://www.woolworths.com.au"
-SEARCH_API = f"{WOW_HOME}/apis/ui/Search/products"
+WOW_HOME    = "https://www.woolworths.com.au"
+SEARCH_API  = f"{WOW_HOME}/apis/ui/Search/products"
+
+# Optional Cloudflare Worker proxy that bypasses Akamai's datacenter IP block.
+# Set WOOLWORTHS_PROXY_URL + WOOLWORTHS_PROXY_TOKEN in Railway env vars.
+PROXY_URL   = os.environ.get("WOOLWORTHS_PROXY_URL", "").rstrip("/")
+PROXY_TOKEN = os.environ.get("WOOLWORTHS_PROXY_TOKEN", "")
 
 HEADERS = {
     "User-Agent": (
@@ -77,27 +83,38 @@ class WoolworthsScraper(BaseScraper):
             await self._client.aclose()
 
     async def search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        """
-        Attempt a direct POST to Woolworths API.
-
-        Works on: residential/home internet connections.
-        Blocked on: Railway, AWS, GCP, Azure (Akamai network-level IP block).
-
-        If you are deploying on a cloud server and want Woolworths results,
-        you need a residential proxy service (e.g. Zyte Smart Proxy ~$5/month).
-        """
         client = await self._get_client()
 
-        # Warm up session cookies
+        # ── Route through Cloudflare Worker proxy when configured ─────────────
+        if PROXY_URL:
+            params = {"q": query, "limit": str(limit)}
+            if PROXY_TOKEN:
+                params["token"] = PROXY_TOKEN
+            try:
+                resp = await client.get(PROXY_URL, params=params, timeout=25)
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as exc:
+                logger.error("Woolworths proxy failed: %s", exc)
+                return []
+
+            products_raw = []
+            for bundle in data.get("Products", []):
+                products_raw.extend(bundle.get("Products", []))
+            logger.info("Woolworths (proxy): %d products for %r", len(products_raw), query)
+            return [p for p in (_parse_product(x) for x in products_raw) if p]
+
+        # ── Direct request (residential / dev only) ───────────────────────────
         try:
             r = await client.get(f"{WOW_HOME}/")
             if "Access Denied" in r.text or r.status_code == 403:
-                raise RuntimeError(
-                    "Woolworths is blocking this server's IP (Akamai network block). "
-                    "A residential proxy is required — see /settings for options."
+                logger.warning(
+                    "Woolworths: Akamai IP block. Set WOOLWORTHS_PROXY_URL to enable."
                 )
+                return []
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"Woolworths connection failed: {exc}") from exc
+            logger.error("Woolworths connection failed: %s", exc)
+            return []
 
         payload = {
             "Filters": [], "IsSpecial": False,
@@ -107,12 +124,9 @@ class WoolworthsScraper(BaseScraper):
             "token": "", "gpBoost": 0, "CategoryVersion": "v2",
         }
         resp = await client.post(SEARCH_API, json=payload)
-
         if resp.status_code in (403, 429, 503):
-            raise RuntimeError(
-                f"Woolworths blocked request (HTTP {resp.status_code}). "
-                "This cloud server's IP is on Akamai's blocklist."
-            )
+            logger.warning("Woolworths: blocked (%s). Set WOOLWORTHS_PROXY_URL.", resp.status_code)
+            return []
         resp.raise_for_status()
 
         data = resp.json()
