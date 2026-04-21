@@ -220,8 +220,30 @@ async def debug_search_error(db: Session = Depends(get_db)):
 async def debug_woolworths(q: str = "milk"):
     """Debug endpoint: test Woolworths scraper."""
     import traceback as _tb
+    import urllib.parse as _up
+    from app.config import get_scraperapi_key
+    diag = {}
     try:
-        from app.scrapers.woolworths import WoolworthsScraper
+        from app.scrapers.woolworths import WoolworthsScraper, _extract_from_html, SEARCH_HTML
+        import httpx as _httpx
+        key = get_scraperapi_key()
+        diag["scraperapi_key_present"] = bool(key)
+        if key:
+            target = f"{SEARCH_HTML}?searchTerm={_up.quote(q)}&hideUnavailable=true&pageNumber=1"
+            scraper_url = (
+                f"https://api.scraperapi.com/?api_key={key}"
+                f"&url={_up.quote(target, safe='')}"
+                f"&render=true&country_code=au"
+            )
+            async with _httpx.AsyncClient(timeout=60) as c:
+                resp = await c.get(scraper_url)
+            diag["http_status"] = resp.status_code
+            diag["html_length"] = len(resp.text)
+            diag["has_next_data"] = "__NEXT_DATA__" in resp.text
+            diag["html_snippet"] = resp.text[:300]
+            raw = _extract_from_html(resp.text, 5)
+            diag["raw_products_found"] = len(raw)
+
         scraper = WoolworthsScraper()
         results = await scraper.search(q, limit=5)
         await scraper.close()
@@ -229,12 +251,14 @@ async def debug_woolworths(q: str = "milk"):
             "status": "ok",
             "count": len(results),
             "products": [{"name": r.name, "price": r.price} for r in results[:3]],
+            "diag": diag,
         })
     except Exception as exc:
         return JSONResponse(content={
             "status": "error",
             "error": str(exc),
             "traceback": _tb.format_exc()[-1000:],
+            "diag": diag,
         })
 
 
