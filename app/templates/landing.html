@@ -224,13 +224,33 @@
             ('iga',        'IGA',        '#D2232A'),
           ] %}
           <li class="flex items-center gap-2 cursor-pointer group"
-              @click="{% if slug == 'iga' %}
-                ['iga_north_sydney','iga_milsons_point','iga_crows_nest'].forEach(s => toggleStore(s));
-                savePreferences();
+              @click="{% if slug == 'harris_farm' %}
+                (function(){
+                  var hfCard = document.querySelector('#store-results [data-hf-slugs]');
+                  var slugs = hfCard ? JSON.parse(hfCard.dataset.hfSlugs) : selectedStores.filter(s => s.startsWith('harris_farm_'));
+                  if (!slugs.length) slugs = ['harris_farm_broadway'];
+                  var anyOn = slugs.some(s => selectedStores.includes(s));
+                  if (anyOn) { selectedStores = selectedStores.filter(s => !s.startsWith('harris_farm_')); }
+                  else { slugs.forEach(s => { if (!selectedStores.includes(s)) selectedStores = [...selectedStores, s]; }); }
+                  savePreferences();
+                })()
+              {% elif slug == 'iga' %}
+                (function(){
+                  var igaCard = document.querySelector('#store-results [data-iga-slugs]');
+                  var slugs = igaCard ? JSON.parse(igaCard.dataset.igaSlugs) : ['iga_north_sydney','iga_milsons_point','iga_crows_nest'];
+                  var anyOn = slugs.some(s => selectedStores.includes(s));
+                  if (anyOn) { selectedStores = selectedStores.filter(s => !slugs.includes(s)); }
+                  else { slugs.forEach(s => { if (!selectedStores.includes(s)) selectedStores = [...selectedStores, s]; }); }
+                  savePreferences();
+                })()
               {% else %}toggleStore('{{ slug }}'){% endif %}">
             <span class="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all"
-                  :style="{% if slug == 'iga' %}
-                    (selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest'))
+                  :style="{% if slug == 'harris_farm' %}
+                    selectedStores.some(s => s.startsWith('harris_farm_'))
+                      ? 'background:#F27200; border-color:#F27200'
+                      : 'background:#fff; border-color:#d1d5db'
+                  {% elif slug == 'iga' %}
+                    selectedStores.some(s => s.startsWith('iga_'))
                       ? 'background:#D2232A; border-color:#D2232A'
                       : 'background:#fff; border-color:#d1d5db'
                   {% else %}
@@ -238,8 +258,10 @@
                       ? 'background:{{ color }}; border-color:{{ color }}'
                       : 'background:#fff; border-color:#d1d5db'
                   {% endif %}">
-              <svg {% if slug == 'iga' %}
-                   x-show="selectedStores.includes('iga_north_sydney') || selectedStores.includes('iga_milsons_point') || selectedStores.includes('iga_crows_nest')"
+              <svg {% if slug == 'harris_farm' %}
+                   x-show="selectedStores.some(s => s.startsWith('harris_farm_'))"
+                   {% elif slug == 'iga' %}
+                   x-show="selectedStores.some(s => s.startsWith('iga_'))"
                    {% else %}
                    x-show="isSelected('{{ slug }}')"
                    {% endif %}
@@ -256,7 +278,15 @@
         </ul>
         <div class="flex gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
           <button type="button"
-            @click="selectedStores = ['woolworths','coles','aldi','harris_farm','iga_north_sydney','iga_milsons_point','iga_crows_nest']; savePreferences()"
+            @click="(function(){
+              var hfCard = document.querySelector('#store-results [data-hf-slugs]');
+              var hfSlugs = hfCard ? JSON.parse(hfCard.dataset.hfSlugs) : selectedStores.filter(s => s.startsWith('harris_farm_'));
+              if (!hfSlugs.length) hfSlugs = ['harris_farm_broadway'];
+              var igaCard = document.querySelector('#store-results [data-iga-slugs]');
+              var igaSlugs = igaCard ? JSON.parse(igaCard.dataset.igaSlugs) : ['iga_north_sydney','iga_milsons_point','iga_crows_nest'];
+              selectedStores = ['woolworths','coles','aldi', ...hfSlugs, ...igaSlugs];
+              savePreferences();
+            })()"
             class="text-xs text-brand hover:text-brand-dark font-semibold transition-colors">All</button>
           <span class="text-gray-300">|</span>
           <button type="button" @click="selectedStores = []; savePreferences()"
