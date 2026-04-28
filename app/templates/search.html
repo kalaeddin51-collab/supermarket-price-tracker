@@ -97,29 +97,35 @@
     {% endif %}
 
     <!-- Store filter pills — dynamic based on user's saved suburb preferences -->
-    {% set all_non_iga = [
-      ('woolworths',  '#007D40'),
-      ('coles',       '#E31A2F'),
-      ('harris_farm', '#F27200'),
-    ] %}
     {% set all_iga_slugs = ['iga_north_sydney', 'iga_milsons_point', 'iga_crows_nest', 'iga_newtown', 'iga_king_st'] %}
 
     {# Collect non-IGA and IGA slugs separately so we can consolidate IGA into one pill #}
-    {% set ns = namespace(non_iga=[], iga_slugs=[]) %}
+    {% set ns = namespace(non_iga=[], iga_slugs=[], hf_slug='') %}
     {% if user_stores %}
-      {% for slug, color in all_non_iga %}
+      {# Woolworths and Coles: direct slug match #}
+      {% for slug, color in [('woolworths', '#007D40'), ('coles', '#E31A2F')] %}
         {% if slug in user_stores %}
           {% set ns.non_iga = ns.non_iga + [(slug, color)] %}
         {% endif %}
       {% endfor %}
+      {# Harris Farm: match any harris_farm_* location slug (never the generic 'harris_farm') #}
+      {% for s in user_stores %}
+        {% if s.startswith('harris_farm_') and not ns.hf_slug %}
+          {% set ns.hf_slug = s %}
+        {% endif %}
+      {% endfor %}
+      {% if ns.hf_slug %}
+        {% set ns.non_iga = ns.non_iga + [(ns.hf_slug, '#F27200')] %}
+      {% endif %}
+      {# IGA: exact slug match #}
       {% for slug in all_iga_slugs %}
         {% if slug in user_stores %}
           {% set ns.iga_slugs = ns.iga_slugs + [slug] %}
         {% endif %}
       {% endfor %}
     {% else %}
-      {# No preference saved — show all stores #}
-      {% set ns.non_iga = all_non_iga %}
+      {# No preference saved — show all stores with real slugs #}
+      {% set ns.non_iga = [('woolworths', '#007D40'), ('coles', '#E31A2F'), ('harris_farm_broadway', '#F27200')] %}
       {% set ns.iga_slugs = all_iga_slugs %}
     {% endif %}
 
@@ -150,7 +156,7 @@
           : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'"
         :style="activeStore === '{{ slug }}' ? 'background:{{ color }}' : ''"
         class="px-4 py-2 rounded-full text-xs font-semibold transition-all min-h-[36px]">
-        {% if slug == 'harris_farm' %}Harris Farm{{ suburb_suffix }}{% else %}{{ store_label(slug) }}{% endif %}
+        {% if slug.startswith('harris_farm') %}Harris Farm{{ suburb_suffix }}{% else %}{{ store_label(slug) }}{% endif %}
       </button>
       {% endfor %}
 
