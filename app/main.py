@@ -235,7 +235,7 @@ async def debug_woolworths(q: str = "milk"):
                 f"&url={_up.quote(target, safe='')}"
                 f"&render=true&country_code=au"
             )
-            async with _httpx.AsyncClient(timeout=60) as c:
+            async with _httpx.AsyncClient(timeout=15) as c:
                 resp = await c.get(scraper_url)
             diag["http_status"] = resp.status_code
             diag["html_length"] = len(resp.text)

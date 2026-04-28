@@ -206,11 +206,11 @@ class WoolworthsScraper(BaseScraper):
             scraper_url = (
                 f"https://api.scraperapi.com/?api_key={scraperapi_key}"
                 f"&url={urllib.parse.quote(target_url, safe='')}"
-                f"&render=true"
+                f"&render=false"
                 f"&country_code=au"
             )
             try:
-                resp = await client.get(scraper_url, headers=HTML_HEADERS, timeout=45)
+                resp = await client.get(scraper_url, headers=HTML_HEADERS, timeout=15)
                 if resp.status_code == 200:
                     raw = _extract_from_html(resp.text, limit)
                     products = [p for p in (_parse_product(x) for x in raw) if p]
