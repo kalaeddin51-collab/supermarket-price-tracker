@@ -1667,40 +1667,60 @@ async def watchlist_add(
     image_url: Optional[str] = Form(None),
 ):
     user_id = request.session.get("user_id")
+    if not user_id:
+        return HTMLResponse("""
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold
+                       bg-red-50 text-red-600 border border-red-200
+                       px-3.5 py-2 rounded-xl">
+            Please log in to watch items
+          </span>
+        """, status_code=200)
     # Upsert product
-    product = db.query(models.Product).filter(
-        models.Product.external_id == external_id,
-        models.Product.store == store,
-    ).first()
-    if not product:
-        product = models.Product(
-            name=name,
-            store=store,
-            external_id=external_id,
-            url=url,
-            image_url=image_url,
-            unit=unit,
-        )
-        db.add(product)
-        db.flush()
+    try:
+        product = db.query(models.Product).filter(
+            models.Product.external_id == external_id,
+            models.Product.store == store,
+        ).first()
+        if not product:
+            product = models.Product(
+                name=name,
+                store=store,
+                external_id=external_id,
+                url=url,
+                image_url=image_url,
+                unit=unit,
+            )
+            db.add(product)
+            db.flush()
 
-    # Store initial price record
-    if price:
-        try:
-            price_val = float(price)
-            db.add(models.PriceRecord(product_id=product.id, price=price_val))
-        except ValueError:
-            pass
+        # Store initial price record
+        if price:
+            try:
+                price_val = float(price)
+                db.add(models.PriceRecord(product_id=product.id, price=price_val))
+            except ValueError:
+                pass
 
-    # Upsert watchlist entry for primary product (scoped to this user)
-    entry = db.query(models.WatchlistEntry).filter(
-        models.WatchlistEntry.product_id == product.id,
-        models.WatchlistEntry.user_id == user_id,
-    ).first()
-    if not entry:
-        entry = models.WatchlistEntry(product_id=product.id, user_id=user_id)
-        db.add(entry)
-    db.commit()
+        # Upsert watchlist entry for primary product (scoped to this user)
+        entry = db.query(models.WatchlistEntry).filter(
+            models.WatchlistEntry.product_id == product.id,
+            models.WatchlistEntry.user_id == user_id,
+        ).first()
+        if not entry:
+            entry = models.WatchlistEntry(product_id=product.id, user_id=user_id)
+            db.add(entry)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        import logging as _log
+        _log.error("watchlist_add failed: store=%s external_id=%s err=%s", store, external_id, exc)
+        return HTMLResponse(f"""
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold
+                       bg-red-50 text-red-600 border border-red-200
+                       px-3.5 py-2 rounded-xl" title="{exc}">
+            ✕ Could not add — {type(exc).__name__}
+          </span>
+        """, status_code=200)
 
     # ── Cross-store search: find same product at all other stores ──────────
     other_stores = [s for s in ALL_STORE_SLUGS if s != store]
