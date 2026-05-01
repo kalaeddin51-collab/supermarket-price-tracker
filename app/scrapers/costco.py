@@ -61,6 +61,27 @@ def _image_url(images: list) -> str | None:
     return None
 
 
+def _float_from_price_obj(obj: dict) -> float | None:
+    """Extract a float from a Hybris price object, trying value then formattedValue."""
+    if not isinstance(obj, dict):
+        return None
+    # Prefer the numeric value field
+    val = obj.get("value")
+    if val is not None:
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            pass
+    # Fallback: parse formattedValue string e.g. "$14.99"
+    # Match a dollar sign followed by digits to avoid grabbing quantity prefixes
+    # like "4 x $54.98" → $54.98 → 54.98
+    formatted = obj.get("formattedValue") or ""
+    m = re.search(r"\$([\d,]+\.[\d]+|\d+)", formatted)
+    if m:
+        return float(m.group(1).replace(",", ""))
+    return None
+
+
 def _parse_price(product: dict) -> tuple[float | None, float | None, bool]:
     """Return (current_price, was_price, on_special).
 
@@ -73,30 +94,18 @@ def _parse_price(product: dict) -> tuple[float | None, float | None, bool]:
     base_obj  = product.get("basePrice") or {}
     disc_obj  = product.get("discountPrice") or {}
 
-    current: float | None = None
-    if isinstance(price_obj, dict) and price_obj.get("value") is not None:
-        try:
-            current = float(price_obj["value"])
-        except (TypeError, ValueError):
-            pass
+    current = _float_from_price_obj(price_obj)
 
-    if current is None and isinstance(base_obj, dict) and base_obj.get("value") is not None:
-        try:
-            current = float(base_obj["value"])
-        except (TypeError, ValueError):
-            pass
+    if current is None:
+        current = _float_from_price_obj(base_obj)
 
-    # Was-price: use basePrice as was-price when discountPrice is the active price
+    # Was-price: if basePrice > current price, the item is on special
+    # Note: discountPrice is the DISCOUNT AMOUNT (e.g. $4 off), not the final price —
+    # do NOT use it as current. Use price vs basePrice comparison instead.
     was_price: float | None = None
-    if isinstance(disc_obj, dict) and disc_obj.get("value") is not None:
-        try:
-            disc_val = float(disc_obj["value"])
-            base_val = float(base_obj.get("value", 0) or 0)
-            if base_val and disc_val < base_val:
-                was_price = base_val
-                current   = disc_val
-        except (TypeError, ValueError):
-            pass
+    base_val = _float_from_price_obj(base_obj)
+    if base_val is not None and current is not None and base_val > current:
+        was_price = base_val
 
     on_special = was_price is not None and current is not None and was_price > current
     if not on_special:
