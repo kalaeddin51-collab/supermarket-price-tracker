@@ -65,6 +65,18 @@ _April 2026 (late)_
 
 ---
 
+## Costco Scraper ✅
+_May 2026_
+
+- **Costco scraper** — Hybris autocomplete JSON API (`/search/autocomplete/SearchBox`)
+- `costco` slug added to Store enum, store labels/colors/info, ALL_STORE_SLUGS
+- Costco included in all suburb store lists (national online pricing, like Aldi)
+- Costco filter pill on search page (brand red `#E2231A`)
+- PostgreSQL enum migration via `_migrate_enum_values()` in `database.py`
+- Spec: `specs/2026-05-01-costco/`
+
+---
+
 ## Phase 5 — Price History Charts 🔜
 _Planned_
 

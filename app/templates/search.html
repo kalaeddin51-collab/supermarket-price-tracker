@@ -102,8 +102,8 @@
     {# Collect non-IGA and IGA slugs separately so we can consolidate IGA into one pill #}
     {% set ns = namespace(non_iga=[], iga_slugs=[], hf_slug='') %}
     {% if user_stores %}
-      {# Woolworths and Coles: direct slug match #}
-      {% for slug, color in [('woolworths', '#007D40'), ('coles', '#E31A2F')] %}
+      {# Woolworths, Coles, Aldi, Costco: direct slug match #}
+      {% for slug, color in [('woolworths', '#007D40'), ('coles', '#E31A2F'), ('aldi', '#0050AA'), ('costco', '#E2231A')] %}
         {% if slug in user_stores %}
           {% set ns.non_iga = ns.non_iga + [(slug, color)] %}
         {% endif %}
@@ -125,7 +125,7 @@
       {% endfor %}
     {% else %}
       {# No preference saved — show all stores with real slugs #}
-      {% set ns.non_iga = [('woolworths', '#007D40'), ('coles', '#E31A2F'), ('harris_farm_broadway', '#F27200')] %}
+      {% set ns.non_iga = [('woolworths', '#007D40'), ('coles', '#E31A2F'), ('aldi', '#0050AA'), ('costco', '#E2231A'), ('harris_farm_broadway', '#F27200')] %}
       {% set ns.iga_slugs = all_iga_slugs %}
     {% endif %}
 

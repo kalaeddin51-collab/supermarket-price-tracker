@@ -39,6 +39,7 @@ class Store(enum.Enum):
     woolworths           = "woolworths"
     coles                = "coles"
     aldi                 = "aldi"
+    costco               = "costco"
     harris_farm          = "harris_farm"           # legacy — kept for existing DB rows
     harris_farm_cammeray  = "harris_farm_cammeray"
     harris_farm_mosman    = "harris_farm_mosman"

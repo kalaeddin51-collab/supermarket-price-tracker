@@ -499,6 +499,10 @@ SUBURB_STORES: dict[str, list[str]] = {
 
 }
 
+# Costco has national online pricing — include in all suburbs (like Aldi)
+_CO = "costco"
+SUBURB_STORES = {k: (v + [_CO] if _CO not in v else v) for k, v in SUBURB_STORES.items()}
+
 # Sorted list of suburb names only (no postcodes), for reference
 ALL_SUBURBS = sorted(
     {k for k in SUBURB_STORES if not k.isdigit()},

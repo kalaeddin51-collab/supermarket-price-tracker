@@ -26,8 +26,9 @@ def init_db():
     from app import models  # noqa: F401 — ensures models are registered
     Base.metadata.create_all(bind=engine)
 
-    # ── Schema migrations (SQLite ALTER TABLE for new columns) ───────────
+    # ── Schema migrations ─────────────────────────────────────────────────
     _migrate_columns()
+    _migrate_enum_values()
 
     # Seed singleton NotificationSettings row if it doesn't exist
     db = SessionLocal()
@@ -37,6 +38,33 @@ def init_db():
             db.commit()
     finally:
         db.close()
+
+
+def _migrate_enum_values():
+    """Add new values to the PostgreSQL 'store' enum type.
+
+    SQLite stores enums as VARCHAR so no migration is needed there.
+    PostgreSQL requires ALTER TYPE … ADD VALUE for each new enum member.
+    """
+    import sqlalchemy as _sa
+
+    is_postgres = "postgresql" in settings.database_url or "postgres" in settings.database_url
+    if not is_postgres:
+        return
+
+    new_values = ["costco"]
+    with engine.connect() as conn:
+        for val in new_values:
+            try:
+                conn.execute(_sa.text(
+                    f"ALTER TYPE store ADD VALUE IF NOT EXISTS '{val}'"
+                ))
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
 
 
 def _migrate_columns():
