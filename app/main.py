@@ -262,6 +262,55 @@ async def debug_woolworths(q: str = "milk"):
         })
 
 
+@app.get("/debug/costco")
+async def debug_costco(q: str = "milk"):
+    """Debug endpoint: test Costco scraper and show raw API response."""
+    import traceback as _tb
+    import httpx as _httpx
+    diag: dict = {}
+    try:
+        url = "https://www.costco.com.au/search/autocomplete/SearchBox"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "application/json, */*",
+            "Referer": "https://www.costco.com.au/",
+        }
+        async with _httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=15) as c:
+            resp = await c.get(url, params={"term": q, "max": 5})
+        diag["http_status"] = resp.status_code
+        diag["response_length"] = len(resp.text)
+        data = resp.json()
+        products_raw = data.get("products") or []
+        diag["raw_product_count"] = len(products_raw)
+        diag["raw_products"] = [
+            {
+                "name": p.get("name"),
+                "code": p.get("code"),
+                "price": p.get("price"),
+                "basePrice": p.get("basePrice"),
+                "hidePriceValue": p.get("hidePriceValue"),
+            }
+            for p in products_raw[:5]
+        ]
+
+        from app.scrapers.costco import CostcoScraper
+        scraper = CostcoScraper()
+        results = await scraper.search(q, limit=5)
+        await scraper.close()
+        return JSONResponse(content={
+            "status": "ok",
+            "scraper_results": [{"name": r.name, "price": r.price, "url": r.url} for r in results],
+            "diag": diag,
+        })
+    except Exception as exc:
+        return JSONResponse(content={
+            "status": "error",
+            "error": str(exc),
+            "traceback": _tb.format_exc()[-1000:],
+            "diag": diag,
+        })
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
