@@ -1103,11 +1103,23 @@ async def search_page(request: Request, db: Session = Depends(get_db), q: str = 
     effective_store = stores or store or (ns.default_store if ns else "all") or "all"
     effective_sort  = sort  or (ns.default_sort  if ns else "")    or ""
 
-    # Load user's saved suburb + store preferences from landing page
+    # Load user's saved suburb + store preferences from landing page.
+    # URL 'stores' param takes priority over DB — prevents the race condition where
+    # savePreferences() async fetch hasn't completed before the search page loads.
     user_stores: list[str] = []
     user_suburb: str = ""
     user_id = request.session.get("user_id")
-    if user_id:
+    if stores and stores != "all":
+        # Explicit store list passed via URL — use it directly
+        user_stores = [s.strip() for s in stores.split(",") if s.strip()]
+        # Still load suburb from DB for display purposes
+        if user_id:
+            pref = db.query(models.UserPreference).filter(
+                models.UserPreference.user_id == user_id
+            ).first()
+            if pref and pref.suburb:
+                user_suburb = pref.suburb
+    elif user_id:
         pref = db.query(models.UserPreference).filter(
             models.UserPreference.user_id == user_id
         ).first()

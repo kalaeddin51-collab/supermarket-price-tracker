@@ -22,7 +22,7 @@
          freshOnly: false,
          activeCategory: '',
          subcategories: [],
-         suburbStores: '{{ user_stores | join(",") if user_stores else "all" }}',
+         suburbStores: '{{ store if store and store != "all" else (user_stores | join(",") if user_stores else "all") }}',
          triggerSearch() {
            // 'all' pill → use the user's suburb stores (never the global ALL_STORE_SLUGS).
            // Specific pill → use that store slug directly.
