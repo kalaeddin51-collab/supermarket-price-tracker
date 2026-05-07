@@ -22,6 +22,10 @@ from app.geo import nearby_suburbs
 app = FastAPI(title="Supermarket Price Tracker")
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key, max_age=60*60*24*30, https_only=True)
 
+# Serve static files (manifest, icons, etc.)
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
 # Simple in-memory rate limiter: track failed login attempts per IP
 _login_attempts: dict[str, list] = {}
 _MAX_ATTEMPTS = 5
