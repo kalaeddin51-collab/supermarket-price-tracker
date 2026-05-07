@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 import bcrypt
 
-from app.config import settings, get_scraperapi_key, set_scraperapi_key, get_resend_key, set_resend_key
+from app.config import settings, get_scraperapi_key, set_scraperapi_key, get_resend_key, set_resend_key, get_anthropic_key
 from app.database import get_db, init_db
 from app import models
 from app.suburbs import SUBURB_STORES, ALL_SUBURBS, POSTCODE_NAMES
