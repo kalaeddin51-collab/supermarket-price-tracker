@@ -2832,40 +2832,48 @@ async def search_all_shopping_items(
     )
     from app.scrapers.iga import IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper
 
-    for item in sl.items:
+    _ALL_SCRAPERS = [
+        WoolworthsScraper, ColesScraper, AldiScraper, CostcoScraper,
+        HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
+        HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
+        IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper,
+    ]
+
+    async def _search_item(item_name: str) -> list:
+        async def _one(cls):
+            try:
+                s = cls()
+                hits = await asyncio.wait_for(s.search(item_name, limit=5), timeout=8.0)
+                await s.close()
+                return hits
+            except Exception:
+                return []
+        results_per_store = await asyncio.gather(*[_one(cls) for cls in _ALL_SCRAPERS])
+        flat = []
+        for hits in results_per_store:
+            flat.extend(hits)
+        return flat
+
+    async def _process_item(item):
         try:
-            all_results = []
-
-            async def run_scraper(scraper_cls, _item=item):
-                try:
-                    scraper = scraper_cls()
-                    hits = await scraper.search(_item.name, limit=5)
-                    await scraper.close()
-                    return hits
-                except Exception:
-                    return []
-
-            tasks = [
-                run_scraper(WoolworthsScraper),
-                run_scraper(ColesScraper),
-                run_scraper(AldiScraper),
-                run_scraper(CostcoScraper),
-                run_scraper(HarrisFarmCammerayScraper),
-                run_scraper(HarrisFarmMosmanScraper),
-                run_scraper(HarrisFarmLaneCoveScraper),
-                run_scraper(HarrisFarmBroadwayScraper),
-                run_scraper(IGANorthSydneyScraper),
-                run_scraper(IGAMilsonsPointScraper),
-                run_scraper(IGACrowsNestScraper),
-            ]
-            task_results = await asyncio.gather(*tasks)
-            for hits in task_results:
-                all_results.extend(hits)
-
+            all_results = await _search_item(item.name)
+            q_words = item.name.strip().split()
+            if len(q_words) >= 2:
+                for r in all_results:
+                    r._relevance = _relevance_score(r.name, item.name)
+                all_results = [r for r in all_results if r._relevance >= 0.15]
             _, _, _, all_sorted = _build_store_best(all_results)
-            item.matched_results = json.dumps(all_sorted)
+            return item.id, json.dumps(all_sorted)
         except Exception:
-            pass
+            return item.id, None
+
+    # Search all items in parallel (not sequentially)
+    item_results = await asyncio.gather(*[_process_item(i) for i in sl.items])
+
+    item_map = {i.id: i for i in sl.items}
+    for item_id, matched_json in item_results:
+        if matched_json is not None:
+            item_map[item_id].matched_results = matched_json
 
     db.commit()
     return RedirectResponse(url=f"/shopping-list/{sl.id}", status_code=303)
@@ -2910,6 +2918,9 @@ async def bulk_search_shopping_items(
     if not sl:
         raise HTTPException(404)
 
+    items_to_search = [item for item in sl.items if item.id in ids]
+
+    # Re-use the parallel helper defined in search_all_shopping_items
     from app.scrapers.woolworths import WoolworthsScraper
     from app.scrapers.coles import ColesScraper
     from app.scrapers.aldi import AldiScraper
@@ -2920,48 +2931,41 @@ async def bulk_search_shopping_items(
     )
     from app.scrapers.iga import IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper
 
-    items_to_search = [item for item in sl.items if item.id in ids]
-    for item in items_to_search:
-        try:
-            all_results = []
+    _ALL_SCRAPERS_BULK = [
+        WoolworthsScraper, ColesScraper, AldiScraper, CostcoScraper,
+        HarrisFarmCammerayScraper, HarrisFarmMosmanScraper,
+        HarrisFarmLaneCoveScraper, HarrisFarmBroadwayScraper,
+        IGANorthSydneyScraper, IGAMilsonsPointScraper, IGACrowsNestScraper,
+    ]
 
-            async def run_scraper(scraper_cls, _item=item):
+    async def _search_item_bulk(item):
+        try:
+            async def _one(cls):
                 try:
-                    scraper = scraper_cls()
-                    hits = await scraper.search(_item.name, limit=5)
-                    await scraper.close()
+                    s = cls()
+                    hits = await asyncio.wait_for(s.search(item.name, limit=5), timeout=8.0)
+                    await s.close()
                     return hits
                 except Exception:
                     return []
-
-            tasks = [
-                run_scraper(WoolworthsScraper),
-                run_scraper(ColesScraper),
-                run_scraper(AldiScraper),
-                run_scraper(CostcoScraper),
-                run_scraper(HarrisFarmCammerayScraper),
-                run_scraper(HarrisFarmMosmanScraper),
-                run_scraper(HarrisFarmLaneCoveScraper),
-                run_scraper(HarrisFarmBroadwayScraper),
-                run_scraper(IGANorthSydneyScraper),
-                run_scraper(IGAMilsonsPointScraper),
-                run_scraper(IGACrowsNestScraper),
-            ]
-            task_results = await asyncio.gather(*tasks)
-            for hits in task_results:
-                all_results.extend(hits)
-
-            # Relevance filter — same threshold as main search
+            results_per_store = await asyncio.gather(*[_one(cls) for cls in _ALL_SCRAPERS_BULK])
+            flat = [h for hits in results_per_store for h in hits]
             q_words = item.name.strip().split()
             if len(q_words) >= 2:
-                for r in all_results:
+                for r in flat:
                     r._relevance = _relevance_score(r.name, item.name)
-                all_results = [r for r in all_results if r._relevance >= 0.15]
-
-            _, _, _, all_sorted = _build_store_best(all_results)
-            item.matched_results = json.dumps(all_sorted)
+                flat = [r for r in flat if r._relevance >= 0.15]
+            _, _, _, all_sorted = _build_store_best(flat)
+            return item.id, json.dumps(all_sorted)
         except Exception:
-            pass
+            return item.id, None
+
+    item_results = await asyncio.gather(*[_search_item_bulk(i) for i in items_to_search])
+
+    item_map = {i.id: i for i in items_to_search}
+    for item_id, matched_json in item_results:
+        if matched_json is not None:
+            item_map[item_id].matched_results = matched_json
 
     db.commit()
     return RedirectResponse(url=f"/shopping-list/{sl.id}", status_code=303)
