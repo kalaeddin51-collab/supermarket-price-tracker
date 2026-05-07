@@ -1490,7 +1490,12 @@ async def profile_prices(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/partials/profile/recommendations", response_class=HTMLResponse)
 async def profile_recommendations(request: Request, db: Session = Depends(get_db)):
-    """Fetch live prices for all profile items, then ask Claude for personalised recommendations."""
+    """
+    Two-step flow:
+      1. Claude looks at the profile and recommends 4-5 specific items to buy/check this week.
+      2. Scrape prices for each recommended item across the user's stores.
+    Result: recommendation cards, each with live store prices underneath.
+    """
     user_id = request.session.get("user_id")
     if not user_id:
         return HTMLResponse('<p class="text-sm text-gray-400">Please log in.</p>')
@@ -1518,82 +1523,50 @@ async def profile_recommendations(request: Request, db: Session = Depends(get_db
     )
 
     from app.ai.agent import search_stores as _ai_search, store_display_name
+    import anthropic as _anthropic
+    import json as _json
 
-    # ── Step 1: fetch live prices for every profile item in parallel ──────────
-    async def _search_item(item):
-        try:
-            results = await _ai_search(item.item_name, user_stores, limit=5)
-            q_words = item.item_name.strip().split()
-            if len(q_words) >= 2:
-                results = [r for r in results if _relevance_score(r["name"], item.item_name) >= 0.15]
-            if item.brand_preference and results:
-                preferred = [r for r in results if item.brand_preference.lower() in r["name"].lower()]
-                if preferred:
-                    results = preferred
-            results = sorted(results, key=lambda r: r["price"])
-            return item, results[:4]
-        except Exception:
-            return item, []
-
-    item_results = list(await asyncio.gather(*[_search_item(i) for i in profile]))
-
-    # ── Step 2: build summary for Claude ─────────────────────────────────────
-    price_lines = []
-    for item, results in item_results:
-        if not results:
-            price_lines.append(f"- {item.item_name}: no results found")
-            continue
-        cheapest = results[0]
-        options = ", ".join(
-            f"{store_display_name(r['store'])} ${r['price']:.2f}"
-            + (f" (was ${r['was_price']:.2f})" if r.get("was_price") and r["was_price"] > r["price"] else "")
-            + (" [SPECIAL]" if r.get("on_special") else "")
-            for r in results
-        )
-        pref_note = f" [prefers: {item.brand_preference}]" if item.brand_preference else ""
-        notes_note = f" ({item.notes})" if item.notes else ""
-        price_lines.append(f"- {item.item_name}{pref_note}{notes_note}: {options}")
-
-    profile_summary = "\n".join(price_lines)
-    stores_text = ", ".join(store_display_name(s) for s in user_stores)
-
-    # ── Step 3: ask Claude for recommendations ────────────────────────────────
-    recommendations = []
+    # ── Step 1: Claude decides what to recommend ──────────────────────────────
     ai_error = None
+    recommendations = []  # [{search_query, title, reason, type}, ...]
 
     if not api_key:
-        ai_error = "ANTHROPIC_API_KEY not configured — add it to Railway Variables to enable AI recommendations."
+        ai_error = "ANTHROPIC_API_KEY not configured — add it to Railway Variables."
     else:
-        import anthropic
-        prompt = f"""You are a personal grocery shopping assistant for a Sydney shopper.
+        profile_lines = "\n".join(
+            f"- {i.item_name}"
+            + (f" (prefers {i.brand_preference})" if i.brand_preference else "")
+            + (f" — {i.notes}" if i.notes else "")
+            for i in profile
+        )
+        stores_text = ", ".join(store_display_name(s) for s in user_stores)
 
-Their weekly shopping list with current live prices:
-{profile_summary}
+        prompt = f"""You are a grocery shopping assistant for a Sydney shopper.
 
-Stores available: {stores_text}
+Their weekly shopping list:
+{profile_lines}
 
-Give 4–6 concise, actionable recommendations. Focus on:
-- Items currently on special that they should buy now
-- Store switching opportunities (e.g. "buy milk at Coles, save $X vs Woolworths")
-- Items where one store is significantly cheaper
-- Any brand preference conflicts worth flagging (e.g. preferred brand is much more expensive)
-- Total basket tip if relevant
+Available stores: {stores_text}
 
-Format as a JSON array. Each object must have exactly:
-  "title"  — short headline, max 8 words (string)
-  "detail" — one sentence with the specific saving or insight (string)
-  "type"   — one of: "deal", "switch", "saving", "tip"
+Choose 4–5 items from their list that are worth checking prices for right now.
+Prioritise items where brand comparisons matter, high-spend staples, or things
+commonly on special in Australian supermarkets.
+
+Return a JSON array. Each object must have exactly:
+  "search_query" — exact search term to use when looking up prices (string, be specific e.g. "free range eggs 12 pack")
+  "title"        — display name for the item, max 5 words (string)
+  "reason"       — one sentence: why this is worth checking this week (string)
+  "type"         — one of: "staple", "special", "value", "compare"
 
 Return raw JSON array only — no markdown, no prose."""
 
         try:
-            client = anthropic.AsyncAnthropic(api_key=api_key)
+            client = _anthropic.AsyncAnthropic(api_key=api_key)
             response = await client.messages.create(
                 model="claude-3-5-haiku-20241022",
-                max_tokens=600,
+                max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )
-            import json as _json
             text = response.content[0].text.strip()
             if "```" in text:
                 for part in text.split("```"):
@@ -1607,9 +1580,25 @@ Return raw JSON array only — no markdown, no prose."""
         except Exception as exc:
             ai_error = f"AI unavailable: {str(exc)[:120]}"
 
+    # ── Step 2: scrape prices for each recommended item in parallel ───────────
+    async def _prices_for_rec(rec):
+        query = rec.get("search_query", rec.get("title", ""))
+        try:
+            results = await _ai_search(query, user_stores, limit=5)
+            q_words = query.strip().split()
+            if len(q_words) >= 2:
+                results = [r for r in results if _relevance_score(r["name"], query) >= 0.15]
+            results = sorted(results, key=lambda r: r["price"])
+            return rec, results[:4]
+        except Exception:
+            return rec, []
+
+    rec_results = []
+    if recommendations:
+        rec_results = list(await asyncio.gather(*[_prices_for_rec(r) for r in recommendations]))
+
     return templates.TemplateResponse(request, "partials/profile_recommendations.html", {
-        "item_results": item_results,
-        "recommendations": recommendations,
+        "rec_results": rec_results,
         "ai_error": ai_error,
         "user_stores": user_stores,
     })
