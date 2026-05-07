@@ -59,8 +59,12 @@ async def _search_one_store_ai(store_slug: str, query: str, limit: int = 5) -> l
         module = importlib.import_module(module_name)
         Cls = getattr(module, class_name)
         scraper = Cls()
-        results = await scraper.search(query, limit=limit)
-        await scraper.close()
+        try:
+            results = await asyncio.wait_for(scraper.search(query, limit=limit), timeout=8.0)
+        except asyncio.TimeoutError:
+            return []
+        finally:
+            await scraper.close()
         return [
             {
                 "name": r.name,

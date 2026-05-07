@@ -427,9 +427,9 @@
     <p class="cover-sub">A human-centred design exploration for a hyperlocal grocery price intelligence platform serving North Sydney residents.</p>
     <div class="cover-meta">
       <div class="cover-meta-item"><strong>Location</strong>North Sydney · Milsons Point · Crows Nest · Cammeray</div>
-      <div class="cover-meta-item"><strong>Version</strong>v0.2 — March 2026</div>
+      <div class="cover-meta-item"><strong>Version</strong>v0.3 — April 2026</div>
       <div class="cover-meta-item"><strong>Methodology</strong>Stanford d.school Design Thinking</div>
-      <div class="cover-meta-item"><strong>Stage</strong>Prototype → Test</div>
+      <div class="cover-meta-item"><strong>Stage</strong>Test → Iterate</div>
     </div>
   </div>
 </div>
@@ -794,9 +794,9 @@
         <p>No native app, no Electron, no extension. A local web server accessible via browser is the only requirement.</p>
       </div>
       <div class="principle" style="border-top-color:var(--prototype);">
-        <div class="principle-num" style="color:var(--prototype);">03 — Local-first</div>
-        <h3>Data stays on your machine</h3>
-        <p>SQLite database, no cloud account required. User data never leaves the household.</p>
+        <div class="principle-num" style="color:var(--prototype);">03 — Cloud-deployed</div>
+        <h3>Hosted on Railway</h3>
+        <p>PostgreSQL on Neon, deployed via Railway. Accessible from any device — no local server required.</p>
       </div>
       <div class="principle" style="border-top-color:var(--ideate);">
         <div class="principle-num" style="color:var(--ideate);">04 — Hyperlocal</div>
@@ -850,9 +850,9 @@
             </tr>
             <tr>
               <td><strong>Database</strong></td>
-              <td><span class="badge badge-green">SQLite + SQLAlchemy 2</span></td>
-              <td>PostgreSQL, MongoDB</td>
-              <td>Zero infrastructure, single file, trivially backupable</td>
+              <td><span class="badge badge-green">SQLite (dev) / PostgreSQL (prod)</span></td>
+              <td>MongoDB</td>
+              <td>SQLite for local dev; Neon PostgreSQL on Railway for production</td>
             </tr>
             <tr>
               <td><strong>Frontend reactivity</strong></td>
@@ -880,15 +880,15 @@
             </tr>
             <tr>
               <td><strong>Email</strong></td>
-              <td><span class="badge badge-green">SMTP (stdlib)</span></td>
-              <td>SendGrid API, Mailgun</td>
-              <td>No external account, works with user's existing email provider</td>
+              <td><span class="badge badge-green">Resend API</span></td>
+              <td>SendGrid, Mailgun, SMTP stdlib</td>
+              <td>Reliable transactional delivery from Railway; no SMTP config needed</td>
             </tr>
             <tr>
               <td><strong>Woolworths scraper</strong></td>
-              <td><span class="badge badge-green">v2 Product API</span></td>
-              <td>Web scraping (HTML)</td>
-              <td>Stable JSON API, returns structured price/stock data</td>
+              <td><span class="badge badge-yellow">ScraperAPI + __NEXT_DATA__</span></td>
+              <td>v2 JSON API (blocked), CF Worker (blocked)</td>
+              <td>Akamai blocks all cloud IPs; ScraperAPI residential proxy fetches HTML, parses embedded Next.js SSR JSON. Requires paid plan for concurrent use.</td>
             </tr>
             <tr>
               <td><strong>Harris Farm scraper</strong></td>
@@ -912,8 +912,8 @@
       <h3>Store Coverage</h3>
       <div class="grid-2" style="margin-top:14px; gap:10px;">
         <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
-          <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
-          <div><div style="font-size:.875rem;font-weight:700;">Woolworths — Miller Street, North Sydney</div><div style="font-size:.78rem;color:var(--muted);">Woolworths v2 Product API · Full price + stock data</div></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:18px;">🟡</div>
+          <div><div style="font-size:.875rem;font-weight:700;">Woolworths — Miller Street, North Sydney</div><div style="font-size:.78rem;color:var(--muted);">ScraperAPI + __NEXT_DATA__ parsing · Requires paid ScraperAPI plan on Railway (free tier blocks concurrent requests)</div></div>
         </div>
         <div style="display:flex; gap:12px; align-items:center; padding:12px; border-radius:10px; border:1px solid var(--border);">
           <div style="width:36px;height:36px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;">🟢</div>
@@ -1019,6 +1019,14 @@
           </div>
         </div>
 
+        <div class="finding">
+          <div class="finding-icon" style="background:#fee2e2;">❌</div>
+          <div class="finding-text">
+            <h4>Woolworths blocked by Akamai on all cloud IPs</h4>
+            <p>Both the v2 JSON API and the HTML search page are blocked from Railway, AWS, and GCP via Akamai bot protection. A Cloudflare Worker proxy was attempted but Akamai now blocks CF IPs too. ScraperAPI residential proxies bypass this, but the free tier returns HTTP 499 ("multiple users from your IP") due to Railway's shared IP triggering ScraperAPI's concurrency limit. A paid ScraperAPI plan is required for reliable cloud-hosted Woolworths search.</p>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1063,11 +1071,11 @@
     <div class="card">
       <div class="roadmap-row">
         <span class="roadmap-phase" style="background:#10b981;">Now</span>
-        <div class="roadmap-items">Fix emoji encoding in email subjects · Persist brand filter across page changes · Add "Add to Watchlist" button in search results · Wire fetch_prices into scheduler</div>
+        <div class="roadmap-items">Upgrade ScraperAPI to paid plan to unblock Woolworths on Railway · Persist brand filter across page changes · Add "Add to Watchlist" button in search results · Wire fetch_prices into scheduler</div>
       </div>
       <div class="roadmap-row">
         <span class="roadmap-phase" style="background:#f59e0b;">Next</span>
-        <div class="roadmap-items">Weekly digest mode (send all prices regardless of change) · Price history sparkline charts · Price history pruning (2-month retention) · In-app notification log / alert history</div>
+        <div class="roadmap-items">Weekly digest mode (send all prices regardless of change) · Price history sparkline charts · Price history pruning (2-month retention) · In-app notification log / alert history · Evaluate alternative residential proxy providers (Bright Data, Oxylabs)</div>
       </div>
       <div class="roadmap-row">
         <span class="roadmap-phase" style="background:#8b5cf6;">Later</span>
@@ -1103,8 +1111,8 @@
 </div>
 
 <footer>
-  Supermarket Price Tracker · Design Thinking Document v0.2 · North Sydney, NSW · March 2026
-  <br>Built with FastAPI · HTMX · Alpine.js · SQLite · Tailwind CSS
+  Supermarket Price Tracker · Design Thinking Document v0.3 · North Sydney, NSW · April 2026
+  <br>Built with FastAPI · HTMX · Alpine.js · PostgreSQL · Tailwind CSS · Deployed on Railway
 </footer>
 
 </body>

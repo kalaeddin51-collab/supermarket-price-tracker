@@ -642,10 +642,10 @@
         <h2 class="text-base font-bold text-gray-800">ScraperAPI key</h2>
       </div>
       <p class="text-xs text-gray-500">
-        Woolworths & Coles block cloud servers. A free
+        Woolworths, Coles &amp; Aldi block cloud servers. A free
         <a href="https://www.scraperapi.com" target="_blank" class="text-brand hover:underline">ScraperAPI</a>
-        account (5 000 requests/month) bypasses this.
-        Paste your API key below.
+        account (1 000 free requests/month, no credit card needed) bypasses this.
+        Paste your API key below — it enables <strong>all three stores</strong> on Railway.
       </p>
       <div>
         <input type="password" name="scraperapi_key"
@@ -656,7 +656,7 @@
       {% if ns.scraperapi_key %}
       <div class="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-        Key configured — Woolworths & Coles search enabled
+        Key configured — Woolworths, Coles &amp; Aldi search enabled
       </div>
       {% endif %}
     </div>
