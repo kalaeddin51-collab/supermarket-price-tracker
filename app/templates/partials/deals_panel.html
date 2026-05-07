@@ -1,0 +1,60 @@
+<!-- Deals panel — lazy-loaded via hx-get="/partials/deals" hx-trigger="load" -->
+{% if state == "no_auth" %}
+  <div class="text-sm text-gray-400 text-center py-3">
+    <a href="/login" class="text-brand font-medium hover:underline">Log in</a> to see personalised deals.
+  </div>
+
+{% elif state == "no_profile" %}
+  <div class="flex items-center gap-3 text-sm text-gray-500 py-2">
+    <span class="text-lg">💡</span>
+    <span>
+      <a href="/profile" class="text-brand font-semibold hover:underline">Set up your shopping profile</a>
+      to get AI-curated deals on the things you actually buy.
+    </span>
+  </div>
+
+{% elif not deals %}
+  <div class="text-sm text-gray-400 text-center py-3">
+    No specials found right now for your profile items. Check back later.
+  </div>
+
+{% else %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for deal in deals %}
+    {% set verdict_classes = {
+      'buy now': 'bg-green-100 text-green-700 border-green-200',
+      'worth it': 'bg-amber-100 text-amber-700 border-amber-200',
+      'skip': 'bg-gray-100 text-gray-500 border-gray-200'
+    } %}
+    {% set vc = verdict_classes.get(deal.verdict | lower, 'bg-gray-100 text-gray-500 border-gray-200') %}
+    <a href="{{ deal.url }}" target="_blank" rel="noopener"
+       class="card-lift block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand transition-colors no-underline">
+
+      <!-- Header: store + verdict -->
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-semibold text-gray-500">{{ deal.store_name }}</span>
+        <span class="text-[10px] font-bold border rounded-full px-2 py-0.5 {{ vc }}">
+          {{ deal.verdict | upper }}
+        </span>
+      </div>
+
+      <!-- Product name -->
+      <p class="text-sm font-semibold text-gray-900 leading-snug mb-2 line-clamp-2">{{ deal.product }}</p>
+
+      <!-- Price row -->
+      <div class="flex items-baseline gap-2 mb-2">
+        <span class="text-xl font-extrabold text-gray-900">${{ "%.2f" | format(deal.price) }}</span>
+        {% if deal.was_price %}
+        <span class="text-sm text-gray-400 line-through">${{ "%.2f" | format(deal.was_price) }}</span>
+        {% endif %}
+        {% if deal.discount_pct and deal.discount_pct > 0 %}
+        <span class="badge-drop ml-auto">{{ deal.discount_pct }}% off</span>
+        {% endif %}
+      </div>
+
+      <!-- Reason -->
+      <p class="text-xs text-gray-500 leading-relaxed">{{ deal.reason }}</p>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}

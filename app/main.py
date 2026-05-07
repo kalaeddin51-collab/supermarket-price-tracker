@@ -1347,6 +1347,160 @@ async def contact_submit(
         })
 
 
+# ── Consumption Profile ───────────────────────────────────────────────────────
+
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    items = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user.id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    return templates.TemplateResponse(request, "profile.html", {
+        "page": "profile",
+        "user": user,
+        "items": items,
+    })
+
+
+@app.post("/api/profile/items", response_class=HTMLResponse)
+async def add_consumption_item(
+    request: Request,
+    item_name: str = Form(...),
+    brand_preference: str = Form(""),
+    notes: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = require_user(request, db)
+    name = item_name.strip()
+    if not name:
+        return HTMLResponse('<p class="text-sm text-red-500">Item name is required.</p>', status_code=200)
+
+    item = models.ConsumptionItem(
+        user_id=user.id,
+        item_name=name,
+        brand_preference=brand_preference.strip() or None,
+        notes=notes.strip() or None,
+    )
+    db.add(item)
+    db.commit()
+
+    items = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user.id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    return templates.TemplateResponse(request, "partials/consumption_items.html", {"items": items})
+
+
+@app.delete("/api/profile/items/{item_id}", response_class=HTMLResponse)
+async def delete_consumption_item(
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = require_user(request, db)
+    item = (
+        db.query(models.ConsumptionItem)
+        .filter(
+            models.ConsumptionItem.id == item_id,
+            models.ConsumptionItem.user_id == user.id,
+        )
+        .first()
+    )
+    if item:
+        db.delete(item)
+        db.commit()
+
+    items = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user.id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    return templates.TemplateResponse(request, "partials/consumption_items.html", {"items": items})
+
+
+# ── AI endpoints ──────────────────────────────────────────────────────────────
+
+@app.post("/api/nl-search", response_class=HTMLResponse)
+async def nl_search_endpoint(
+    request: Request,
+    query: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Natural language search — interprets intent, calls scrapers as tools, returns results."""
+    user_id = request.session.get("user_id")
+    profile: list = []
+    user_stores: list[str] = []
+
+    if user_id:
+        profile = (
+            db.query(models.ConsumptionItem)
+            .filter(models.ConsumptionItem.user_id == user_id)
+            .order_by(models.ConsumptionItem.created_at)
+            .all()
+        )
+        pref = (
+            db.query(models.UserPreference)
+            .filter(models.UserPreference.user_id == user_id)
+            .first()
+        )
+        if pref and pref.stores:
+            user_stores = [s.strip() for s in pref.stores.split(",") if s.strip()]
+
+    from app.ai.nl_search import run_nl_search
+    result = await run_nl_search(query.strip(), profile, user_stores)
+
+    return templates.TemplateResponse(request, "partials/nl_results.html", {
+        "query": query.strip(),
+        "result": result,
+    })
+
+
+@app.get("/partials/deals", response_class=HTMLResponse)
+async def deals_panel(request: Request, db: Session = Depends(get_db)):
+    """Lazy-loaded deals panel — personalised based on consumption profile."""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return templates.TemplateResponse(request, "partials/deals_panel.html", {
+            "deals": [], "state": "no_auth",
+        })
+
+    profile = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user_id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    if not profile:
+        return templates.TemplateResponse(request, "partials/deals_panel.html", {
+            "deals": [], "state": "no_profile",
+        })
+
+    pref = (
+        db.query(models.UserPreference)
+        .filter(models.UserPreference.user_id == user_id)
+        .first()
+    )
+    user_stores = (
+        [s.strip() for s in pref.stores.split(",") if s.strip()]
+        if pref and pref.stores
+        else []
+    )
+
+    from app.ai.deal_detector import find_deals
+    deals = await find_deals(profile, user_stores)
+
+    return templates.TemplateResponse(request, "partials/deals_panel.html", {
+        "deals": deals,
+        "state": "ok",
+    })
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     ns = db.query(models.NotificationSettings).first()

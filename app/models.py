@@ -183,6 +183,18 @@ class NotificationSettings(Base):
     default_store: Mapped[str] = mapped_column(String(50), default="all")   # "all" | store slug
 
 
+class ConsumptionItem(Base):
+    """An item the user buys regularly — used as AI context for NL search and deal detection."""
+    __tablename__ = "consumption_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    item_name: Mapped[str] = mapped_column(String(200))          # e.g. "chicken breast"
+    brand_preference: Mapped[str | None] = mapped_column(String(100), nullable=True)  # None = any brand
+    notes: Mapped[str | None] = mapped_column(String(300), nullable=True)             # e.g. "free range only"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ShoppingList(Base):
     __tablename__ = "shopping_lists"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

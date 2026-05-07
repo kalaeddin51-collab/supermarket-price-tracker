@@ -24,14 +24,41 @@ When adding a new feature phase:
 
 ```
 app/main.py         — FastAPI routes, product grouping, store labels/colors/info
-app/models.py       — SQLAlchemy ORM models (User, Product, WatchlistEntry, ...)
-app/config.py       — pydantic-settings + runtime key cache (get_scraperapi_key, get_resend_key)
+app/models.py       — SQLAlchemy ORM models (User, Product, WatchlistEntry, ConsumptionItem, ...)
+app/config.py       — pydantic-settings + runtime key cache (get_scraperapi_key, get_anthropic_key, ...)
 app/suburbs.py      — suburb → store slug mapping (600+ Sydney suburbs)
 app/geo.py          — haversine nearby_suburbs()
-app/scrapers/       — one scraper class per store (woolworths, coles, harris_farm, iga, aldi)
+app/scrapers/       — one scraper class per store (woolworths, coles, harris_farm, iga, aldi, costco)
+app/ai/             — agentic features (agent.py, nl_search.py, deal_detector.py)
 app/notifiers/      — email (Resend), push (ntfy.sh), alert logic
 app/templates/      — Jinja2 HTML templates
 ```
+
+## AI / Agentic Features
+
+### Consumption Profile (`ConsumptionItem` model)
+- Per-user list of regularly bought items with optional brand preference and notes
+- Stored in `consumption_items` table (auto-created on startup via `create_all`)
+- Managed via `/profile` page (HTMX inline add/delete)
+
+### Natural Language Search (`/api/nl-search`)
+- Uses Claude with tool use (agentic loop: plan → search_products tool → observe → summarise)
+- Claude decides what to search for based on the user's consumption profile
+- Results render in the same `#search-results` div as regular search
+- Model: `claude-3-5-haiku-20241022` (fast, cheap for tool-use loops)
+- Requires `ANTHROPIC_API_KEY` env var; degrades gracefully if absent
+
+### Genuine Deal Detector (`/partials/deals`)
+- Lazy-loaded HTMX panel on the search page
+- Searches stores for each profile item in parallel, collects specials
+- Single-shot Claude prompt curates genuine deals from marketing noise
+- Returns up to 5 deals with reasoning and verdict (buy now / worth it / skip)
+- Requires login + consumption profile items + `ANTHROPIC_API_KEY`
+
+### app/ai/ module
+- `agent.py` — SCRAPER_MAP + `search_stores(query, stores, limit)` — parallel scraper runner
+- `nl_search.py` — `run_nl_search(query, profile, user_stores)` — returns {summary, results, error}
+- `deal_detector.py` — `find_deals(profile, user_stores)` — returns list of deal dicts
 
 ## Key Decisions & Gotchas
 

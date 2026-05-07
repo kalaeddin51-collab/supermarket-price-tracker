@@ -31,5 +31,8 @@ pydantic-settings==2.5.2
 passlib[bcrypt]
 itsdangerous
 
+# AI / LLM
+anthropic>=0.40.0
+
 # CLI
 click==8.1.7

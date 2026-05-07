@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # ScraperAPI key — set via env var OR saved via Settings page into DB
     scraperapi_key: str = ""
 
+    # Anthropic API key — for NL search and deal detector
+    anthropic_api_key: str = ""
 
 
 settings = Settings()
@@ -61,3 +63,17 @@ def get_resend_key() -> str:
 def set_resend_key(key: str) -> None:
     global _resend_key_runtime
     _resend_key_runtime = key
+
+
+# ── Anthropic API key runtime cache ──────────────────────────────────────────
+_anthropic_key_runtime: str = ""
+
+
+def get_anthropic_key() -> str:
+    """Return Anthropic API key: runtime/DB value → env var → config file."""
+    return _anthropic_key_runtime or settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+
+
+def set_anthropic_key(key: str) -> None:
+    global _anthropic_key_runtime
+    _anthropic_key_runtime = key

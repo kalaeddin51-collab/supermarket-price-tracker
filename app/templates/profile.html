@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}My Shopping Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Shopping Profile</h1>
+    <p class="text-sm text-gray-500 mt-1">
+      Tell the AI what you buy regularly. It uses this to find genuine deals and interpret
+      natural language searches like "cheap protein this week".
+    </p>
+  </div>
+
+  <!-- Info banner -->
+  <div class="flex gap-3 bg-violet-50 border border-violet-200 rounded-xl p-4 mb-6">
+    <span class="text-2xl shrink-0">🤖</span>
+    <div class="text-sm text-violet-800">
+      <p class="font-semibold mb-1">How your profile is used</p>
+      <ul class="list-disc list-inside space-y-0.5 text-violet-700">
+        <li><strong>AI Search</strong> — "cheap protein" finds what <em>you</em> actually eat, not generic results</li>
+        <li><strong>Deal Detector</strong> — surfaces genuine discounts on the things you buy, not random specials</li>
+        <li>Brand preference is respected — set it when brand matters, leave blank for any brand</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Add item form -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100">
+      <h2 class="font-semibold text-gray-900">Add an item</h2>
+    </div>
+    <form
+      hx-post="/api/profile/items"
+      hx-target="#consumption-items-list"
+      hx-swap="outerHTML"
+      hx-on::after-request="this.reset()"
+      class="p-5 space-y-4"
+      x-data="{ submitting: false }"
+      @htmx:before-request.camel="submitting = true"
+      @htmx:after-request.camel="submitting = false">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Item name -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+            What do you buy? <span class="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            name="item_name"
+            placeholder="e.g. chicken breast, full cream milk, free range eggs"
+            required
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+          />
+        </div>
+
+        <!-- Brand preference -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+            Brand preference <span class="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            name="brand_preference"
+            placeholder="e.g. Mainland, Sanitarium, Devondale"
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+          Notes <span class="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          name="notes"
+          placeholder="e.g. free range only, low fat, 2L carton"
+          class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+        />
+      </div>
+
+      <div class="flex justify-end">
+        <button
+          type="submit"
+          class="flex items-center gap-2 bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-brand-dark transition-colors disabled:opacity-60"
+          :disabled="submitting">
+          <span x-show="!submitting">+ Add to profile</span>
+          <span x-show="submitting" x-cloak>Adding…</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Items list -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-900">Your weekly items</h2>
+      <span class="text-xs text-gray-400">{{ items | length }} item{{ 's' if items | length != 1 else '' }}</span>
+    </div>
+    <div class="px-5 py-2">
+      {% include "partials/consumption_items.html" %}
+    </div>
+  </div>
+
+  <!-- Quick add suggestions -->
+  <div class="mt-6 bg-gray-50 rounded-2xl border border-gray-200 p-5">
+    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Common items to add</h3>
+    <div class="flex flex-wrap gap-2"
+         x-data="{
+           suggestions: ['Full cream milk', 'Free range eggs', 'Chicken breast', 'Greek yoghurt',
+                         'Sourdough bread', 'Butter', 'Cheddar cheese', 'Olive oil',
+                         'Pasta', 'Tinned tomatoes', 'Oats', 'Mince beef',
+                         'Salmon', 'Tuna cans', 'Bananas', 'Broccoli']
+         }">
+      <template x-for="s in suggestions" :key="s">
+        <button
+          @click="
+            const form = document.querySelector('form[hx-post]');
+            form.querySelector('[name=item_name]').value = s;
+            form.querySelector('[name=item_name]').focus();
+          "
+          class="text-xs bg-white border border-gray-200 text-gray-600 rounded-full px-3 py-1.5
+                 hover:border-brand hover:text-brand transition-colors"
+          x-text="s">
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Link back to search -->
+  <div class="mt-6 text-center">
+    <a href="/search" class="text-sm text-brand font-medium hover:underline">
+      ← Back to search
+    </a>
+  </div>
+
+</div>
+{% endblock %}
