@@ -1583,11 +1583,15 @@ Return raw JSON array only — no markdown, no prose."""
     # ── Step 2: scrape prices for each recommended item in parallel ───────────
     async def _prices_for_rec(rec):
         query = rec.get("search_query", rec.get("title", ""))
+        # Use the shorter title for relevance filtering — the full search_query
+        # often has extra specifics (pack size, weight) that don't appear in
+        # every product name, so the strict all-words filter zeros everything out.
+        title = rec.get("title", query)
         try:
-            results = await _ai_search(query, user_stores, limit=5)
-            q_words = query.strip().split()
-            if len(q_words) >= 2:
-                results = [r for r in results if _relevance_score(r["name"], query) >= 0.15]
+            results = await _ai_search(query, user_stores, limit=6)
+            title_words = title.strip().split()
+            if len(title_words) >= 2:
+                results = [r for r in results if _relevance_score(r["name"], title) >= 0.15]
             results = sorted(results, key=lambda r: r["price"])
             return rec, results[:4]
         except Exception:
