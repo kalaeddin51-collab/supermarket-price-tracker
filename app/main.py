@@ -1428,6 +1428,64 @@ async def delete_consumption_item(
     return templates.TemplateResponse(request, "partials/consumption_items.html", {"items": items})
 
 
+# ── Profile prices (no API key needed) ────────────────────────────────────────
+
+@app.get("/partials/profile/prices", response_class=HTMLResponse)
+async def profile_prices(request: Request, db: Session = Depends(get_db)):
+    """Search stores for each profile item and return cheapest price per item."""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return HTMLResponse('<p class="text-sm text-gray-400">Please log in.</p>')
+
+    profile = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user_id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    if not profile:
+        return HTMLResponse('<p class="text-sm text-gray-400">Add items to your profile first.</p>')
+
+    pref = (
+        db.query(models.UserPreference)
+        .filter(models.UserPreference.user_id == user_id)
+        .first()
+    )
+    user_stores = (
+        [s.strip() for s in pref.stores.split(",") if s.strip()]
+        if pref and pref.stores
+        else ["woolworths", "coles", "aldi"]
+    )
+
+    from app.ai.agent import search_stores as _ai_search
+
+    async def _cheapest_for_item(item):
+        try:
+            results = await _ai_search(item.item_name, user_stores, limit=4)
+            # Relevance filter for multi-word queries
+            q_words = item.item_name.strip().split()
+            if len(q_words) >= 2:
+                results = [r for r in results if _relevance_score(r["name"], item.item_name) >= 0.15]
+            # Filter to brand preference if set
+            if item.brand_preference and results:
+                brand_lower = item.brand_preference.lower()
+                preferred = [r for r in results if brand_lower in r["name"].lower()]
+                if preferred:
+                    results = preferred
+            # Sort by price
+            results = sorted(results, key=lambda r: r["price"])
+            return item, results[:3]  # cheapest 3 options
+        except Exception:
+            return item, []
+
+    item_results = await asyncio.gather(*[_cheapest_for_item(i) for i in profile])
+
+    return templates.TemplateResponse(request, "partials/profile_prices.html", {
+        "item_results": item_results,
+        "user_stores": user_stores,
+    })
+
+
 # ── AI endpoints ──────────────────────────────────────────────────────────────
 
 @app.post("/api/nl-search", response_class=HTMLResponse)
