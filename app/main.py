@@ -1486,6 +1486,135 @@ async def profile_prices(request: Request, db: Session = Depends(get_db)):
     })
 
 
+# ── Profile AI recommendations ────────────────────────────────────────────────
+
+@app.get("/partials/profile/recommendations", response_class=HTMLResponse)
+async def profile_recommendations(request: Request, db: Session = Depends(get_db)):
+    """Fetch live prices for all profile items, then ask Claude for personalised recommendations."""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return HTMLResponse('<p class="text-sm text-gray-400">Please log in.</p>')
+
+    profile = (
+        db.query(models.ConsumptionItem)
+        .filter(models.ConsumptionItem.user_id == user_id)
+        .order_by(models.ConsumptionItem.created_at)
+        .all()
+    )
+    if not profile:
+        return HTMLResponse('<p class="text-sm text-gray-400">Add items to your profile first.</p>')
+
+    api_key = get_anthropic_key()
+
+    pref = (
+        db.query(models.UserPreference)
+        .filter(models.UserPreference.user_id == user_id)
+        .first()
+    )
+    user_stores = (
+        [s.strip() for s in pref.stores.split(",") if s.strip()]
+        if pref and pref.stores
+        else ["woolworths", "coles", "aldi"]
+    )
+
+    from app.ai.agent import search_stores as _ai_search, store_display_name
+
+    # ── Step 1: fetch live prices for every profile item in parallel ──────────
+    async def _search_item(item):
+        try:
+            results = await _ai_search(item.item_name, user_stores, limit=5)
+            q_words = item.item_name.strip().split()
+            if len(q_words) >= 2:
+                results = [r for r in results if _relevance_score(r["name"], item.item_name) >= 0.15]
+            if item.brand_preference and results:
+                preferred = [r for r in results if item.brand_preference.lower() in r["name"].lower()]
+                if preferred:
+                    results = preferred
+            results = sorted(results, key=lambda r: r["price"])
+            return item, results[:4]
+        except Exception:
+            return item, []
+
+    item_results = list(await asyncio.gather(*[_search_item(i) for i in profile]))
+
+    # ── Step 2: build summary for Claude ─────────────────────────────────────
+    price_lines = []
+    for item, results in item_results:
+        if not results:
+            price_lines.append(f"- {item.item_name}: no results found")
+            continue
+        cheapest = results[0]
+        options = ", ".join(
+            f"{store_display_name(r['store'])} ${r['price']:.2f}"
+            + (f" (was ${r['was_price']:.2f})" if r.get("was_price") and r["was_price"] > r["price"] else "")
+            + (" [SPECIAL]" if r.get("on_special") else "")
+            for r in results
+        )
+        pref_note = f" [prefers: {item.brand_preference}]" if item.brand_preference else ""
+        notes_note = f" ({item.notes})" if item.notes else ""
+        price_lines.append(f"- {item.item_name}{pref_note}{notes_note}: {options}")
+
+    profile_summary = "\n".join(price_lines)
+    stores_text = ", ".join(store_display_name(s) for s in user_stores)
+
+    # ── Step 3: ask Claude for recommendations ────────────────────────────────
+    recommendations = []
+    ai_error = None
+
+    if not api_key:
+        ai_error = "ANTHROPIC_API_KEY not configured — add it to Railway Variables to enable AI recommendations."
+    else:
+        import anthropic
+        prompt = f"""You are a personal grocery shopping assistant for a Sydney shopper.
+
+Their weekly shopping list with current live prices:
+{profile_summary}
+
+Stores available: {stores_text}
+
+Give 4–6 concise, actionable recommendations. Focus on:
+- Items currently on special that they should buy now
+- Store switching opportunities (e.g. "buy milk at Coles, save $X vs Woolworths")
+- Items where one store is significantly cheaper
+- Any brand preference conflicts worth flagging (e.g. preferred brand is much more expensive)
+- Total basket tip if relevant
+
+Format as a JSON array. Each object must have exactly:
+  "title"  — short headline, max 8 words (string)
+  "detail" — one sentence with the specific saving or insight (string)
+  "type"   — one of: "deal", "switch", "saving", "tip"
+
+Return raw JSON array only — no markdown, no prose."""
+
+        try:
+            client = anthropic.AsyncAnthropic(api_key=api_key)
+            response = await client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=600,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            import json as _json
+            text = response.content[0].text.strip()
+            if "```" in text:
+                for part in text.split("```"):
+                    part = part.strip().lstrip("json").strip()
+                    if part.startswith("["):
+                        text = part
+                        break
+            recommendations = _json.loads(text)
+            if not isinstance(recommendations, list):
+                recommendations = []
+        except Exception as exc:
+            ai_error = f"AI unavailable: {str(exc)[:120]}"
+
+    return templates.TemplateResponse(request, "partials/profile_recommendations.html", {
+        "item_results": item_results,
+        "recommendations": recommendations,
+        "ai_error": ai_error,
+        "user_stores": user_stores,
+    })
+
+
 # ── AI endpoints ──────────────────────────────────────────────────────────────
 
 @app.post("/api/nl-search", response_class=HTMLResponse)
