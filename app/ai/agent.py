@@ -64,7 +64,10 @@ async def _search_one_store_ai(store_slug: str, query: str, limit: int = 5) -> l
         except asyncio.TimeoutError:
             return []
         finally:
-            await scraper.close()
+            try:
+                await asyncio.wait_for(scraper.close(), timeout=2.0)
+            except Exception:
+                pass
         return [
             {
                 "name": r.name,

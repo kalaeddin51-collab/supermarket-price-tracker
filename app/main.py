@@ -1562,10 +1562,13 @@ Return raw JSON array only — no markdown, no prose."""
 
         try:
             client = _anthropic.AsyncAnthropic(api_key=api_key)
-            response = await client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
+            response = await asyncio.wait_for(
+                client.messages.create(
+                    model="claude-3-5-haiku-20241022",
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=25.0,
             )
             text = response.content[0].text.strip()
             if "```" in text:
@@ -1577,6 +1580,8 @@ Return raw JSON array only — no markdown, no prose."""
             recommendations = _json.loads(text)
             if not isinstance(recommendations, list):
                 recommendations = []
+        except asyncio.TimeoutError:
+            ai_error = "AI timed out — please try again."
         except Exception as exc:
             ai_error = f"AI unavailable: {str(exc)[:120]}"
 
