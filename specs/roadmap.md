@@ -108,13 +108,18 @@ _Blocked: requires paid ScraperAPI plan_
 
 ---
 
-## Phase 8 — PWA & Mobile 🔜
-_Planned_
+## Phase 8 — PWA & Mobile ✅ (partial)
+_May 2026_
 
-- Web App Manifest + Service Worker (offline caching of watchlist page)
-- Home screen install prompt
-- VAPID-based browser push notifications (replaces/supplements ntfy.sh)
-- Mobile-optimised search results layout (single-column, larger touch targets)
+- Web App Manifest (`/static/manifest.json`) + SVG icon → "Add to Home Screen" on Android Chrome
+- PWA meta tags in base.html (theme-color, apple-mobile-web-app-capable, apple-touch-icon)
+- Mobile bottom tab bar (Search, List, Watchlist, Profile, More) — fixed bottom, hidden ≥ sm
+- "More" sheet (Alpine slide-up): Dashboard, Settings, Contact, Sign out
+- Static files mounted at `/static` via FastAPI StaticFiles
+
+Remaining for full Phase 8:
+- Service Worker (offline caching of watchlist page)
+- VAPID-based browser push notifications
 - Barcode scanner: camera API → scan product barcode → auto-search
 
 ---
