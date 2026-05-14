@@ -20,7 +20,7 @@ from app.suburbs import SUBURB_STORES, ALL_SUBURBS, POSTCODE_NAMES
 from app.geo import nearby_suburbs
 
 app = FastAPI(title="Supermarket Price Tracker")
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key, max_age=60*60*24*30, https_only=True)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key, max_age=60*60*24*30, https_only=settings.https_only)
 
 # Serve static files (manifest, icons, etc.)
 _static_dir = os.path.join(os.path.dirname(__file__), "static")

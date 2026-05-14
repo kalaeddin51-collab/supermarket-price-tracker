@@ -27,8 +27,14 @@ class Settings(BaseSettings):
     # ScraperAPI key — set via env var OR saved via Settings page into DB
     scraperapi_key: str = ""
 
-    # Anthropic API key — for NL search and deal detector
+    # Anthropic API key — for NL search and deal detector (legacy)
     anthropic_api_key: str = ""
+
+    # Google Gemini API key — for NL search and deal detector
+    google_api_key: str = ""
+
+    # Set to false for local HTTP development (session cookies won't require HTTPS)
+    https_only: bool = True
 
 
 settings = Settings()
@@ -77,3 +83,17 @@ def get_anthropic_key() -> str:
 def set_anthropic_key(key: str) -> None:
     global _anthropic_key_runtime
     _anthropic_key_runtime = key
+
+
+# ── Google API key runtime cache ──────────────────────────────────────────────
+_google_key_runtime: str = ""
+
+
+def get_google_key() -> str:
+    """Return Google API key: runtime/DB value → env var → config file."""
+    return _google_key_runtime or settings.google_api_key or os.environ.get("GOOGLE_API_KEY", "")
+
+
+def set_google_key(key: str) -> None:
+    global _google_key_runtime
+    _google_key_runtime = key

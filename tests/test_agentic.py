@@ -81,14 +81,14 @@ class TestAgentModule:
 
     def test_search_stores_unknown_slug_returns_empty(self):
         from app.ai.agent import search_stores
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             search_stores("milk", ["not_a_real_store"], limit=3)
         )
         assert result == []
 
     def test_search_stores_empty_list_returns_empty(self):
         from app.ai.agent import search_stores
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             search_stores("milk", [], limit=3)
         )
         assert result == []
@@ -107,7 +107,7 @@ class TestAgentModule:
                 mock_module.WoolworthsScraper = mock_cls
                 mock_import.return_value = mock_module
 
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     search_stores("milk", ["woolworths"], limit=3)
                 )
                 assert result == []
@@ -118,8 +118,8 @@ class TestAgentModule:
 class TestNLSearch:
     def test_returns_error_when_no_api_key(self):
         from app.ai.nl_search import run_nl_search
-        with patch("app.ai.nl_search.get_anthropic_key", return_value=""):
-            result = asyncio.get_event_loop().run_until_complete(
+        with patch("app.ai.nl_search.get_google_key", return_value=""):
+            result = asyncio.run(
                 run_nl_search("cheap milk", [], ["coles", "woolworths"])
             )
         assert result["error"] is not None
@@ -129,8 +129,8 @@ class TestNLSearch:
 
     def test_result_has_required_keys(self):
         from app.ai.nl_search import run_nl_search
-        with patch("app.ai.nl_search.get_anthropic_key", return_value=""):
-            result = asyncio.get_event_loop().run_until_complete(
+        with patch("app.ai.nl_search.get_google_key", return_value=""):
+            result = asyncio.run(
                 run_nl_search("eggs", [], [])
             )
         assert "summary" in result
@@ -181,16 +181,16 @@ class TestNLSearch:
 class TestDealDetector:
     def test_returns_empty_without_api_key(self):
         from app.ai.deal_detector import find_deals
-        with patch("app.ai.deal_detector.get_anthropic_key", return_value=""):
-            result = asyncio.get_event_loop().run_until_complete(
+        with patch("app.ai.deal_detector.get_google_key", return_value=""):
+            result = asyncio.run(
                 find_deals([], ["coles"])
             )
         assert result == []
 
     def test_returns_empty_with_empty_profile(self):
         from app.ai.deal_detector import find_deals
-        with patch("app.ai.deal_detector.get_anthropic_key", return_value="fake-key"):
-            result = asyncio.get_event_loop().run_until_complete(
+        with patch("app.ai.deal_detector.get_google_key", return_value="fake-key"):
+            result = asyncio.run(
                 find_deals([], ["coles", "woolworths"])
             )
         assert result == []
@@ -209,7 +209,7 @@ class TestDealDetector:
             "image_url": None,
         }
         with patch("app.ai.deal_detector.search_stores", new=AsyncMock(return_value=[fake_result])):
-            specials = asyncio.get_event_loop().run_until_complete(
+            specials = asyncio.run(
                 _collect_specials_for_item("chicken breast", ["coles"])
             )
         # 20% discount — should be included
@@ -231,7 +231,7 @@ class TestDealDetector:
             "image_url": None,
         }
         with patch("app.ai.deal_detector.search_stores", new=AsyncMock(return_value=[fake_result])):
-            specials = asyncio.get_event_loop().run_until_complete(
+            specials = asyncio.run(
                 _collect_specials_for_item("milk", ["woolworths"])
             )
         assert specials == []
@@ -250,7 +250,7 @@ class TestDealDetector:
             "image_url": None,
         }
         with patch("app.ai.deal_detector.search_stores", new=AsyncMock(return_value=[fake_result])):
-            specials = asyncio.get_event_loop().run_until_complete(
+            specials = asyncio.run(
                 _collect_specials_for_item("eggs", ["aldi"])
             )
         assert len(specials) == 1
@@ -297,7 +297,7 @@ class TestAIRoutes:
         assert r.status_code == 200
 
     def test_nl_search_without_key_returns_error_html(self, client):
-        with patch("app.ai.nl_search.get_anthropic_key", return_value=""):
+        with patch("app.ai.nl_search.get_google_key", return_value=""):
             r = client.post("/api/nl-search",
                             data={"query": "cheap eggs"},
                             follow_redirects=False)

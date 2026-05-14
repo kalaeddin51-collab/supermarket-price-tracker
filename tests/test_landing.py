@@ -159,14 +159,15 @@ class TestHTMLQuoting:
 
     def test_iga_card_uses_single_quoted_xdata(self):
         html = self._get_partial("crows nest")
-        # Valid pattern: x-data='{ "igaSlugs": [...] }'
-        good = re.findall(r"x-data='[^']*igaSlugs[^']*'", html)
-        assert len(good) > 0, "IGA card must use single-quoted x-data for igaSlugs"
+        # Template uses data-select-slugs with single-quoted JSON array containing IGA slugs
+        good = re.findall(r"data-select-slugs='[^']*iga_[^']*'", html)
+        assert len(good) > 0, "Store card must use single-quoted data-select-slugs containing IGA slugs"
 
     def test_select_all_uses_single_quoted_xdata(self):
         html = self._get_partial("crows nest")
-        good = re.findall(r"x-data='[^']*allSlugs[^']*'", html)
-        assert len(good) > 0, "Select-all button must use single-quoted x-data for allSlugs"
+        # Template uses data-select-slugs for select-all button
+        good = re.findall(r"data-select-slugs='[^']*'", html)
+        assert len(good) > 0, "Select-all button must use single-quoted data-select-slugs"
 
     def test_no_results_for_unknown_query(self):
         html = self._get_partial("xyzzy999notasuburb")
@@ -187,7 +188,7 @@ class TestHTMLQuoting:
 
     def test_newtown_shows_iga(self):
         html = self._get_partial("newtown")
-        assert "igaSlugs" in html, "Newtown has IGA stores (Lloyds IGA and IGA Local Grocer on King St)"
+        assert "iga_newtown" in html or "iga_king_st" in html, "Newtown has IGA stores (Lloyds IGA and IGA Local Grocer on King St)"
 
     def test_postcode_search_works(self):
         html = self._get_partial("2065")

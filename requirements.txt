@@ -32,7 +32,7 @@ passlib[bcrypt]
 itsdangerous
 
 # AI / LLM
-anthropic>=0.40.0
+google-genai>=2.0.0
 
 # CLI
 click==8.1.7

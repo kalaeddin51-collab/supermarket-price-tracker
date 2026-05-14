@@ -1,45 +1,44 @@
 """
-Natural Language Search — agentic tool-use loop.
+Natural Language Search — agentic function-calling loop.
 
-Claude interprets the user's query using their consumption profile as context,
+Gemini interprets the user's query using their consumption profile as context,
 decides what to search for (1-4 products), calls the scrapers as tools,
 and returns a brief text summary + flat list of product results.
 """
 import json
-import anthropic
+from google import genai
+from google.genai import types
 
 from app.ai.agent import search_stores
-from app.config import get_anthropic_key
+from app.config import get_google_key
 
 
-NL_TOOLS = [
-    {
-        "name": "search_products",
-        "description": (
-            "Search for a grocery product across supermarket stores and return "
-            "matching products with current prices. Call once per distinct product "
-            "you want to find. Keep queries specific."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Specific product name to search for. "
-                        "Be precise — 'free range chicken thigh 1kg' beats 'chicken'."
-                    ),
-                },
-                "stores": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Store slugs to search, e.g. ['coles', 'woolworths', 'aldi']",
-                },
+_SEARCH_DECLARATION = types.FunctionDeclaration(
+    name="search_products",
+    description=(
+        "Search for a grocery product across supermarket stores and return "
+        "matching products with current prices. Call once per distinct product "
+        "you want to find. Keep queries specific."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "Specific product name to search for. "
+                    "Be precise — 'free range chicken thigh 1kg' beats 'chicken'."
+                ),
             },
-            "required": ["query", "stores"],
+            "stores": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Store slugs to search, e.g. ['coles', 'woolworths', 'aldi']",
+            },
         },
-    }
-]
+        "required": ["query", "stores"],
+    },
+)
 
 
 def _format_profile(profile: list) -> str:
@@ -80,82 +79,78 @@ Instructions:
 
 async def run_nl_search(query: str, profile: list, user_stores: list[str]) -> dict:
     """
-    Run a natural language grocery search using Claude with tool use.
+    Run a natural language grocery search using Gemini with function calling.
 
     Returns:
         {
-            "summary": str,          # Claude's 2-3 sentence recommendation
+            "summary": str,          # Gemini's 2-3 sentence recommendation
             "results": list[dict],   # flat list of all product results
             "error": str | None,     # friendly error message or None
         }
     """
-    api_key = get_anthropic_key()
+    api_key = get_google_key()
     if not api_key:
         return {
             "summary": "",
             "results": [],
             "error": (
-                "Anthropic API key not configured. "
-                "Add ANTHROPIC_API_KEY to your Railway environment variables to enable AI search."
+                "Google API key not configured. "
+                "Add GOOGLE_API_KEY to your .env or Railway environment variables to enable AI search."
             ),
         }
 
     if not user_stores:
         user_stores = ["woolworths", "coles", "aldi"]
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    messages: list[dict] = [{"role": "user", "content": query}]
+    client = genai.Client(api_key=api_key)
+    config = types.GenerateContentConfig(
+        tools=[types.Tool(function_declarations=[_SEARCH_DECLARATION])],
+        system_instruction=_build_system(profile, user_stores),
+    )
+
+    chat = client.aio.chats.create(model="gemini-2.0-flash", config=config)
     all_results: list[dict] = []
     summary = ""
 
     try:
+        response = await chat.send_message(query)
+
         for _ in range(8):  # safety cap — prevents runaway loops
-            response = await client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=1024,
-                system=_build_system(profile, user_stores),
-                tools=NL_TOOLS,
-                messages=messages,
-            )
+            fn_calls = [
+                p.function_call
+                for p in response.candidates[0].content.parts
+                if p.function_call
+            ]
 
-            if response.stop_reason == "end_turn":
-                summary = next(
-                    (b.text for b in response.content if hasattr(b, "text")), ""
-                )
+            if not fn_calls:
+                # Extract text from response
+                for part in response.candidates[0].content.parts:
+                    if part.text:
+                        summary += part.text
                 break
 
-            if response.stop_reason == "tool_use":
-                messages.append({"role": "assistant", "content": response.content})
-                tool_results = []
-
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
-                    if block.name == "search_products":
-                        stores_to_use = block.input.get("stores") or user_stores
-                        results = await search_stores(block.input["query"], stores_to_use, limit=5)
-                        all_results.extend(results)
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                # Truncate to keep context window manageable
-                                "content": json.dumps(results[:8]),
-                            }
+            fn_response_parts = []
+            for fc in fn_calls:
+                if fc.name == "search_products":
+                    stores_to_use = list(fc.args.get("stores") or user_stores)
+                    results = await search_stores(fc.args["query"], stores_to_use, limit=5)
+                    all_results.extend(results)
+                    fn_response_parts.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=fc.name,
+                                response={"result": json.dumps(results[:8])},
+                            )
                         )
+                    )
 
-                messages.append({"role": "user", "content": tool_results})
-            else:
+            if not fn_response_parts:
                 break
+
+            response = await chat.send_message(fn_response_parts)
 
         return {"summary": summary, "results": all_results, "error": None}
 
-    except anthropic.AuthenticationError:
-        return {
-            "summary": "",
-            "results": [],
-            "error": "Invalid Anthropic API key. Check your ANTHROPIC_API_KEY environment variable.",
-        }
     except Exception as exc:
         return {
             "summary": "",

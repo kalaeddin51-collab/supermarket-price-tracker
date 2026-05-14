@@ -4,17 +4,17 @@ Genuine Deal Detector.
 For each item in the user's consumption profile:
   1. Search their stores for that item
   2. Collect products that are on special or have a was_price significantly above current price
-  3. Pass the collected specials to Claude in a single prompt
-  4. Claude curates + ranks the genuine deals, filtering marketing noise
+  3. Pass the collected specials to Gemini in a single prompt
+  4. Gemini curates + ranks the genuine deals, filtering marketing noise
 
 Returns up to 5 deal dicts, each with a one-sentence reason and a verdict.
 """
 import asyncio
 import json
-import anthropic
+from google import genai
 
 from app.ai.agent import search_stores
-from app.config import get_anthropic_key
+from app.config import get_google_key
 
 # Minimum discount to be considered worth evaluating (5%)
 _MIN_DISCOUNT_PCT = 5
@@ -61,7 +61,7 @@ async def find_deals(profile: list, user_stores: list[str], db=None) -> list[dic
             "verdict": "buy now" | "worth it" | "skip",
         }
     """
-    api_key = get_anthropic_key()
+    api_key = get_google_key()
     if not api_key or not profile:
         return []
 
@@ -121,16 +121,15 @@ Rules:
 - Use "skip" if the deal seems like marketing noise (e.g. tiny % off a rarely-needed item)
 - Return raw JSON array only — no prose, no code fences"""
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     try:
-        response = await client.messages.create(
-            model="claude-3-5-haiku-20241022",
-            max_tokens=800,
-            messages=[{"role": "user", "content": prompt}],
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
         )
-        text = response.content[0].text.strip()
+        text = response.text.strip()
 
-        # Strip markdown code fences if Claude added them anyway
+        # Strip markdown code fences if Gemini added them anyway
         if "```" in text:
             for part in text.split("```"):
                 part = part.strip().lstrip("json").strip()
@@ -141,7 +140,5 @@ Rules:
         deals = json.loads(text)
         return deals if isinstance(deals, list) else []
 
-    except (anthropic.AuthenticationError, anthropic.APIError, json.JSONDecodeError):
-        return []
-    except Exception:
+    except (json.JSONDecodeError, Exception):
         return []
